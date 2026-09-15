@@ -1,0 +1,32 @@
+# वातावरण/रहस्य — कभी commit न हों
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules
+
+# Expo
+.expo
+.expo-shared
+dist/
+web-build/
+
+# Native build आउटपुट
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS/Editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea

@@ -1,0 +1,191 @@
+/* ============================================================
+   ShaktiCop प्रशासन — डिज़ाइन टोकन
+
+   सोच: यह एक ड्यूटी-कंसोल है, आम dashboard नहीं। जो अधिकारी इसे चलाता है वह
+   दिन भर इसी पर बैठता है — इसलिए रंग शांत हैं और घनत्व ज़्यादा।
+
+   🔑 सबसे बड़ा फ़ैसला: मैरून (Mission Shakti वाला गुलाबी) यहाँ *सिर्फ़* आपात-संकेत
+   के लिए है — चालू SOS और SLA-चूक। मोबाइल ऐप में वह हर जगह है, पर यहाँ हर जगह
+   होने से उसका मतलब ही ख़त्म हो जाता। कम इस्तेमाल से ही वह ध्यान खींचता है।
+
+   🔑 दूसरा फ़ैसला: पूरा डेटा द्विभाषी है — थाना, श्रेणी, अधिकारी के नाम देवनागरी में,
+   और संख्याएं/समय लैटिन में। इसलिए fonts ऐसे चुने हैं जिनकी x-height और weight
+   दोनों लिपियों में मेल खाती है, वरना घनी tables में लाइनें डगमगाती दिखतीं।
+   ============================================================ */
+
+:root {
+  /* ---------- सतह ---------- */
+  /* दफ़्तर के रजिस्टर-काग़ज़ जैसा ठंडा धूसर — न क्रीम, न सफ़ेद */
+  --paper:        #EEF1F4;
+  --card:         #FFFFFF;
+  --card-sunk:    #F7F9FA;
+
+  /* ---------- ढांचा ---------- */
+  /* UP Police की पहचान वाला गहरा नीला — यही पूरे ढांचे का रंग है */
+  --ink:          #0F2A44;
+  --ink-2:        #1B4A73;
+  --ink-3:        #4A6B87;
+  --ink-mute:     #7C93A6;
+  --rule:         #D5DDE4;
+  --rule-soft:    #E4EAEF;
+
+  /* ---------- संकेत ---------- */
+  /* ⛔ मैरून सिर्फ़ आपात के लिए — कहीं और इस्तेमाल न करें */
+  --alarm:        #C2185B;
+  --alarm-wash:   #FCE7EF;
+  --warn:         #B26A00;   /* SLA नज़दीक */
+  --warn-wash:    #FFF4E0;
+  --ok:           #1B7F5A;   /* निस्तारित */
+  --ok-wash:      #E4F3EC;
+
+  /* ---------- टाइप ---------- */
+  --sans: 'IBM Plex Sans', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --deva: 'Noto Sans Devanagari', 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* ---------- नाप ---------- */
+  --r-sm: 4px;
+  --r:    7px;
+  --r-lg: 12px;
+  --shadow: 0 1px 2px rgba(15,42,68,.06), 0 4px 14px rgba(15,42,68,.05);
+  --sidebar-w: 236px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* संख्याएं हमेशा एक चौड़ाई की — वरना tables में कॉलम हिलते दिखते हैं */
+.num, td.num, .stat-value { font-variant-numeric: tabular-nums; font-family: var(--mono); }
+
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: 21px; }
+h2 { font-size: 16px; }
+h3 { font-size: 14px; }
+
+a { color: var(--ink-2); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button { font-family: inherit; font-size: inherit; cursor: pointer; }
+
+/* पहुँच: keyboard से चलने वाले को हमेशा दिखे कि वह कहाँ है */
+:focus-visible {
+  outline: 2px solid var(--ink-2);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* जिन्हें गति से परेशानी होती है, उनके लिए सब स्थिर */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ---------- छोटे साझा हिस्से ---------- */
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pill-alarm { background: var(--alarm-wash); color: var(--alarm); }
+.pill-warn  { background: var(--warn-wash);  color: var(--warn); }
+.pill-ok    { background: var(--ok-wash);    color: var(--ok); }
+.pill-mute  { background: var(--card-sunk);  color: var(--ink-3); border: 1px solid var(--rule-soft); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  font-weight: 600;
+  transition: background .12s, border-color .12s;
+}
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover { background: var(--ink-2); }
+.btn-primary:disabled { background: var(--ink-mute); cursor: not-allowed; }
+.btn-quiet { background: var(--card); color: var(--ink); border-color: var(--rule); }
+.btn-quiet:hover { background: var(--card-sunk); }
+
+.field { display: block; margin-bottom: 14px; }
+.field > span {
+  display: block; margin-bottom: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--ink-3);
+}
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  font-family: inherit; font-size: 14px;
+}
+.input:focus { border-color: var(--ink-2); outline: none; }
+
+/* ---------- tables ---------- */
+.table-wrap { overflow-x: auto; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.data th {
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+table.data td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: middle;
+}
+table.data tbody tr:hover { background: var(--card-sunk); }
+table.data tbody tr:last-child td { border-bottom: none; }
+
+/* ---------- ख़ाली व त्रुटि ---------- */
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-3);
+}
+.empty strong { display: block; margin-bottom: 5px; color: var(--ink); font-size: 15px; }
+
+.error-box {
+  padding: 11px 14px;
+  background: var(--alarm-wash);
+  border: 1px solid #F3C6D8;
+  border-radius: var(--r);
+  color: var(--alarm);
+  font-size: 13px;
+  font-weight: 500;
+}

@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shaktikop_user
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: shaktikop
+    ports:
+      - '5432:5432'
+    volumes:
+      - shaktikop_pgdata:/var/lib/postgresql/data
+      - ./src/db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./src/db/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - '4000:4000'
+    environment:
+      DATABASE_URL: postgres://shaktikop_user:changeme@db:5432/shaktikop
+      JWT_SECRET: change-this-to-a-long-random-string
+      JWT_EXPIRES_IN: 7d
+      OTP_EXPIRY_MINUTES: 5
+      OTP_DEV_MODE: 'true'
+      PORT: 4000
+
+volumes:
+  shaktikop_pgdata:

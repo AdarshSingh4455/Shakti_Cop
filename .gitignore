@@ -1,0 +1,125 @@
+# ============================================================
+# ShaktiCop — Comprehensive Root .gitignore
+# Covers: Node.js, React/Vite, React Native/Expo, Secrets, OS, IDE
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. Environment & Secrets (NEVER COMMIT)
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.env
+*.env.*
+!*.env.example
+
+# Credentials, keys, certificates, & keystores
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.p8
+*.jks
+*.keystore
+*.mobileprovision
+id_rsa*
+*_rsa
+secrets/
+credentials.json
+google-services.json
+GoogleService-Info.plist
+
+# Backups and database dumps containing potential PII
+*.backup.json
+backups/
+*.dump
+*.sql.gz
+*.tar.gz
+
+# ------------------------------------------------------------
+# 2. Dependencies (Node.js / React / Expo)
+# ------------------------------------------------------------
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+
+# ------------------------------------------------------------
+# 3. Build Outputs & Compilations
+# ------------------------------------------------------------
+# Web / Vite / React
+dist/
+*/dist/
+build/
+*/build/
+out/
+*/out/
+.output/
+
+# Expo / React Native
+.expo/
+*/.expo/
+.expo-shared/
+*/.expo-shared/
+web-build/
+*/web-build/
+*.apk
+*.aab
+*.ipa
+*.orig.*
+
+# Android native build files
+shaktikop-mobile/android/.gradle/
+shaktikop-mobile/android/app/build/
+shaktikop-mobile/android/build/
+
+# iOS native build files
+shaktikop-mobile/ios/build/
+shaktikop-mobile/ios/Pods/
+
+# ------------------------------------------------------------
+# 4. Logs & Debugging
+# ------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------------------------
+# 5. OS Generated Files
+# ------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# ------------------------------------------------------------
+# 6. IDE / Editor Configurations
+# ------------------------------------------------------------
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+
+# ------------------------------------------------------------
+# 7. Temporary / Scratch Files
+# ------------------------------------------------------------
+*.tmp
+*.temp
+.cache/
+.eslintcache
+.parcel-cache

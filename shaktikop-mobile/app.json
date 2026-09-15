@@ -1,0 +1,91 @@
+{
+  "expo": {
+    "name": "ShaktiCop",
+    "slug": "shaktikop",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.gov.up.shaktikop",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "शिकायत के साथ आपकी लाइव लोकेशन जोड़ने के लिए।",
+        "NSPhotoLibraryUsageDescription": "शिकायत के साथ फोटो प्रमाण संलग्न करने के लिए।",
+        "NSMicrophoneUsageDescription": "शिकायत के साथ आवाज़ रिकॉर्ड करने के लिए।",
+        "NSFaceIDUsageDescription": "ऐप को सुरक्षित रखने के लिए Face ID/फ़िंगरप्रिंट से अनलॉक करने के लिए (सिर्फ़ तभी जब आप इसे Settings में स्वयं चालू करें)।"
+      }
+    },
+    "android": {
+      "package": "in.gov.up.shaktikop",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF",
+        "monochromeImage": "./assets/adaptive-icon.png"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECORD_AUDIO",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "allowBackup": false,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableSeparateBuildPerCPUArchitecture": false,
+            "universalApk": true,
+            "buildArchs": ["arm64-v8a", "armeabi-v7a"]
+          }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "शिकायत के साथ आपकी लाइव लोकेशन जोड़ने के लिए।",
+          "locationAlwaysAndWhenInUsePermission": "सुरक्षित यात्रा व SOS के दौरान — स्क्रीन बंद होने पर भी आपकी लोकेशन पुलिस तक पहुँचती रहे, इसके लिए \"हमेशा अनुमति दें\" चुनें।",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "बोलकर शिकायत का विवरण भरने के लिए माइक्रोफ़ोन एक्सेस चाहिए।",
+          "speechRecognitionPermission": "आपकी आवाज़ को टेक्स्ट में बदलने के लिए।",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "शिकायत की QR पावती स्कैन करने के लिए कैमरा एक्सेस चाहिए।"
+        }
+      ]
+    ]
+  }
+}

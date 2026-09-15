@@ -1,0 +1,37 @@
+{
+  "name": "shaktikop-backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:migrate": "psql \"$DATABASE_URL\" -f src/db/schema.sql",
+    "db:migrate:neon": "node src/scripts/migrateNeon.js",
+    "db:migrate:neon:dry-run": "node src/scripts/migrateNeon.js --dry-run",
+    "db:seed": "psql \"$DATABASE_URL\" -f src/db/seed.sql",
+    "db:encrypt-fields": "node src/scripts/encryptExistingFields.js",
+    "db:geocode-stations": "node src/scripts/geocodePoliceStations.js",
+    "audit:verify": "node src/scripts/verifyAuditLog.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "@sentry/node": "^8.9.2",
+    "express-rate-limit": "^7.2.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^9.0.3",
+    "fontkit": "^2.0.4",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.11.5",
+    "rate-limit-redis": "^4.2.0",
+    "ioredis": "^5.4.1"
+  }
+}

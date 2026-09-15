@@ -1,0 +1,80 @@
+/* लॉगिन — बाईं ओर पहचान, दाईं ओर काम की बात।
+   मोबाइल पर बायां हिस्सा एक पतली पट्टी बन जाता है, ताकि keyboard खुलने पर भी
+   फ़ॉर्म पूरा दिखे। */
+
+.login-shell {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 420px) 1fr;
+}
+
+.login-side {
+  background: var(--ink);
+  color: #fff;
+  padding: 44px 38px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  /* हल्की जाली — रजिस्टर के काग़ज़ जैसा, पर बहुत मद्धम ताकि ध्यान न खींचे */
+  background-image:
+    linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+.login-mark {
+  margin: 10px 0 2px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.login-sub {
+  margin: 0;
+  font-family: var(--deva);
+  font-size: 15px;
+  color: rgba(255,255,255,.72);
+}
+.login-note {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: rgba(255,255,255,.6);
+}
+
+.login-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+.login-form {
+  width: 100%;
+  max-width: 360px;
+}
+.login-form h2 { font-size: 20px; }
+.login-hint {
+  margin: 4px 0 22px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.login-foot {
+  margin: 18px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-mute);
+}
+
+@media (max-width: 760px) {
+  .login-shell { grid-template-columns: 1fr; }
+  .login-side {
+    padding: 22px 22px 20px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .login-mark { font-size: 24px; margin: 4px 0 0; }
+  .login-note { display: none; }   /* छोटी स्क्रीन पर जगह फ़ॉर्म को मिले */
+  .login-main { align-items: flex-start; padding-top: 34px; }
+}

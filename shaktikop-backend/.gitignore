@@ -1,0 +1,22 @@
+# वातावरण/रहस्य — कभी commit न हों
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS/Editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# बैकअप/एक्सपोर्ट फ़ाइलें — इनमें असली नागरिक डेटा हो सकता है, कभी repo में नहीं जानी चाहिए
+*.backup.json
+backups/

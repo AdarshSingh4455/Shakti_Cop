@@ -1,0 +1,90 @@
+/* शिकायत सूची व विवरण */
+
+.filters {
+  display: flex; gap: 9px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 16px;
+}
+.filter-search { flex: 1; min-width: 230px; }
+.filter-sel { width: auto; min-width: 150px; }
+.filter-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 13px;
+  background: var(--card);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r);
+  font-size: 13.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-check input { accent-color: var(--alarm); }
+
+.dim { color: var(--ink-mute); }
+
+/* SOS वाली पंक्ति — बाईं धार मैरून, ताकि सूची में नज़र पहले वहीं जाए */
+tr.row-sos td:first-child { box-shadow: inset 3px 0 0 var(--alarm); }
+
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-top: 18px;
+}
+.pager-at { font-size: 13px; color: var(--ink-3); }
+
+/* ---------- विवरण ---------- */
+.back-link {
+  display: inline-block; margin-bottom: 12px;
+  font-size: 13px; color: var(--ink-3);
+}
+
+.detail-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.panel { padding: 18px 20px; }
+.panel + .panel { margin-top: 16px; }
+.panel > h2 {
+  margin-bottom: 13px; padding-bottom: 9px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--deva); font-size: 14.5px;
+}
+
+.kv { display: grid; grid-template-columns: 128px 1fr; gap: 8px 14px; font-size: 13.5px; }
+.kv dt { color: var(--ink-3); font-family: var(--deva); }
+.kv dd { margin: 0; }
+
+.desc-body {
+  margin: 0; padding: 13px 15px;
+  background: var(--card-sunk);
+  border-radius: var(--r);
+  font-size: 13.5px; line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* समयरेखा — क्रम मायने रखता है, इसलिए बाईं ओर एक सीधी रेखा और बिंदु */
+.timeline { list-style: none; margin: 0; padding: 0 0 0 18px; position: relative; }
+.timeline::before {
+  content: ''; position: absolute; left: 4px; top: 5px; bottom: 5px;
+  width: 1px; background: var(--rule);
+}
+.timeline li { position: relative; padding-bottom: 15px; }
+.timeline li:last-child { padding-bottom: 0; }
+.timeline li::before {
+  content: ''; position: absolute; left: -18px; top: 5px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--card); border: 2px solid var(--ink-3);
+}
+.timeline li.is-sos::before { border-color: var(--alarm); background: var(--alarm); }
+.tl-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.tl-what { font-size: 13.5px; font-weight: 600; font-family: var(--deva); }
+.tl-when { font-family: var(--mono); font-size: 11.5px; color: var(--ink-mute); }
+.tl-note { margin: 3px 0 0; font-size: 13px; color: var(--ink-3); line-height: 1.6; }
+
+@media (max-width: 940px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .filter-search, .filter-sel { min-width: 100%; }
+  .kv { grid-template-columns: 1fr; gap: 2px 0; }
+  .kv dt { margin-top: 8px; font-size: 12px; }
+}
