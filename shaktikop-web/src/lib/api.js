@@ -6,10 +6,15 @@
 //   • access token चुपचाप refresh होता रहे, ताकि अधिकारी का काम बीच में न रुके
 // ============================================================
 
-// ⚠️ deploy करते समय इसे अपने backend का पता बनाएं। खाली छोड़ने पर वही host मान
-//    लिया जाता है जिस पर web ऐप चल रही है (अगर दोनों एक ही domain पर हों)।
-export const BASE_URL =
-  import.meta.env.VITE_API_URL || 'https://backend-production-2c8b.up.railway.app';
+// ⚠️ deploy करते समय VITE_API_URL ज़रूर सेट करें (Render → Environment)।
+//    🐛 बग फ़िक्स: पहले यहां न सेट होने पर पुराने (अब बंद हो चुके) Railway बैकएंड पर
+//    चुपचाप fallback हो जाता था — यानी बिल्ड में गलती से यह variable छूट जाने पर भी
+//    कोई त्रुटि नहीं दिखती, बस ऐप एक मरे हुए बैकएंड से बात करने की कोशिश करता रहता।
+//    अब जानबूझकर fail-fast: variable न हो तो बिल्ड-टाइम पर ही साफ़ त्रुटि।
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error('VITE_API_URL सेट नहीं है — deploy से पहले Render पर यह environment variable ज़रूर जोड़ें।');
+}
+export const BASE_URL = import.meta.env.VITE_API_URL;
 
 const TOKEN_KEY = 'shaktikop_admin_token';
 const REFRESH_KEY = 'shaktikop_admin_refresh';

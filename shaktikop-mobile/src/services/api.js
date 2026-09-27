@@ -1,14 +1,20 @@
 // ============================================================
 // बैकएंड से जुड़ने वाली सारी API कॉल्स यहीं हैं।
-// फोन (Expo Go) पर 'localhost' काम नहीं करेगा — अपने लैपटॉप का असली LAN IP डालें।
-// टर्मिनल में `ipconfig` (Windows) या `ifconfig` (Mac/Linux) चलाकर पता करें।
+// फोन (Expo Go) पर 'localhost' काम नहीं करेगा — अपने लैपटॉप का असली LAN IP डालें
+// (स्थानीय विकास के लिए EXPO_PUBLIC_API_URL सेट करें, जैसे: EXPO_PUBLIC_API_URL=http://192.168.x.x:4000)।
+// टर्मिनल में `ipconfig` (Windows) या `ifconfig` (Mac/Linux) चलाकर अपना LAN IP पता करें।
+//
+// 🐛 बग फ़िक्स: पहले यह पुराने (अब बंद हो चुके) Railway बैकएंड पर हार्डकोड था।
+// अब यह EXPO_PUBLIC_SENTRY_DSN जैसे ही मौजूदा पैटर्न से आता है — बिना सेट किए
+// (जैसे store-distributed build में) यह असली production बैकएंड पर डिफ़ॉल्ट होता है,
+// ताकि गलती से पुराने/मृत बैकएंड पर कभी न जाए।
 // ============================================================
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { lookupTranslation } from '../context/translationDictionary';
 import { getDeviceName } from '../utils/deviceName';
 
-export const BASE_URL = 'https://backend-production-2c8b.up.railway.app'; // ← अपना असली IP डालें
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://shakti-cop.onrender.com';
 
 const TOKEN_KEY = 'shaktikop_token'; // ⚠️ SecureStore keys में सिर्फ़ अक्षर/अंक/'.'/'-'/'_' चल सकते हैं — इसलिए ':' हटाया
 const LEGACY_TOKEN_KEY = 'shaktikop:token'; // पुराना AsyncStorage वाला key — माइग्रेशन के लिए
