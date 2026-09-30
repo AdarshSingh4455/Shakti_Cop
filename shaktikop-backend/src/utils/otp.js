@@ -2,10 +2,67 @@ const { isDemoAccount } = require('./demoAccounts');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const db = require('../config/db');
+const { getRedisClient } = require('./rateLimitStore');
 
 // 🔒 डिफ़ॉल्ट 5 से घटाकर 3 मिनट — OTP जितनी देर वैध रहेगा, हमलावर के पास अनुमान
 // लगाने की खिड़की उतनी बड़ी। 3 मिनट SMS पहुँचने के सामान्य विलंब के लिए काफ़ी है।
 const OTP_EXPIRY_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 3);
+
+// ============================================================
+// Resend Cooldown — हर पहचान+purpose के लिए न्यूनतम प्रतीक्षा, अगले "OTP भेजें"
+// अनुरोध तक। यह otpLimiter (5/10मिनट, IP+पहचान) और otpAccountLimiter (10/घंटा,
+// सिर्फ़ पहचान) — दोनों मौजूदा सीमाओं — के *अलावा* एक तीसरी, छोटी परत है, उन्हें
+// बदलती नहीं। वे दोनों "कुल कितनी बार" रोकती हैं; यह सिर्फ़ "कितनी जल्दी दोबारा"
+// रोकती है — मोबाइल ऐप का client-side 45-सेकंड cooldown (useResendCooldown.js)
+// सीधे API कॉल से बायपास किया जा सकता था, वह यहाँ अब server-side भी लागू है।
+//
+// 🔒 गोपनीयता: cooldown सक्रिय होने पर कोई अलग/पहचान-योग्य जवाब नहीं — सिर्फ़ नया
+// OTP चुपचाप नहीं भेजा जाता, पर caller (हर request-otp controller) वैसा ही सामान्य
+// "OTP भेज दिया गया है" संदेश लौटाता है जैसा हमेशा। इसलिए न तो खाता-मौजूदगी लीक
+// होती है, न ही यह पता चलता है कि cooldown लगा या असल में OTP भेजा गया — दोनों
+// स्थितियाँ बाहर से बिल्कुल एक जैसी दिखती हैं। सभी 4 request-otp flow (signup,
+// forgot-password, officer, staff) यहीं, एक ही केंद्रीय जगह से गुज़रते हैं —
+// इसलिए किसी endpoint से इसे बायपास करने का कोई रास्ता नहीं बनता।
+const OTP_RESEND_COOLDOWN_SECONDS = Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 30);
+const resendCooldowns = new Map(); // Redis न हो तो यही इस्तेमाल होता है
+const RESEND_COOLDOWN_PREFIX = 'otpresend:';
+
+async function isInResendCooldown(key) {
+  if (OTP_RESEND_COOLDOWN_SECONDS <= 0) return false; // 0/ऋणात्मक सेट करने पर पूरी तरह बंद
+  const client = getRedisClient();
+  if (!client) {
+    const until = resendCooldowns.get(key);
+    return !!until && Date.now() < until;
+  }
+  try {
+    const exists = await client.exists(RESEND_COOLDOWN_PREFIX + key);
+    return exists === 1;
+  } catch (e) {
+    // Redis गड़बड़ हो तो in-memory पर वापस — cooldown न टूटे, पर पूरा request भी न रुके
+    const until = resendCooldowns.get(key);
+    return !!until && Date.now() < until;
+  }
+}
+
+async function markResendSent(key) {
+  if (OTP_RESEND_COOLDOWN_SECONDS <= 0) return;
+  resendCooldowns.set(key, Date.now() + OTP_RESEND_COOLDOWN_SECONDS * 1000); // हमेशा — Redis गिरने पर भी कुछ तो बचे
+  const client = getRedisClient();
+  if (!client) return;
+  try {
+    await client.set(RESEND_COOLDOWN_PREFIX + key, '1', 'EX', OTP_RESEND_COOLDOWN_SECONDS);
+  } catch (e) {
+    // चुपचाप छोड़ें — ऊपर in-memory में लिख चुके हैं
+  }
+}
+
+// पुरानी entries अपने-आप हटती रहें (in-memory fallback के लिए)
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, until] of resendCooldowns) {
+    if (now >= until) resendCooldowns.delete(k);
+  }
+}, 10 * 60 * 1000).unref();
 
 // 🔒 सुरक्षा फ़िक्स: OTP पहले database में सादे (plain text) रूप में रखा जाता था।
 // यानी database तक सिर्फ़ पढ़ने की पहुँच रखने वाला कोई भी व्यक्ति — dump, replica,
@@ -278,7 +335,7 @@ async function getTransporter() {
 //    यह काफ़ी है। असली लॉन्च के लिए अपना डोमेन सत्यापित करके
 //    RESEND_FROM=noreply@<आपका-डोमेन> रखें — वरना नागरिकों तक मेल नहीं जाएगी।
 // ============================================================
-async function sendViaResend(email, subject, message) {
+async function sendViaResend(email, subject, message, html) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
@@ -292,7 +349,8 @@ async function sendViaResend(email, subject, message) {
         from: process.env.RESEND_FROM || 'ShaktiCop <onboarding@resend.dev>',
         to: [email],
         subject,
-        text: message,
+        text: message, // ⚠️ plain-text हमेशा साथ जाता है — html न दिखे तो भी संदेश पढ़ा जा सके
+        ...(html ? { html } : {}),
       }),
       signal: controller.signal,
     });
@@ -311,10 +369,10 @@ async function sendViaResend(email, subject, message) {
   }
 }
 
-async function sendEmail(email, subject, message) {
+async function sendEmail(email, subject, message, html) {
   // Resend सेट हो तो वही — Railway पर यही एकमात्र चलने वाला रास्ता है
   if (process.env.RESEND_API_KEY) {
-    const ok = await sendViaResend(email, subject, message);
+    const ok = await sendViaResend(email, subject, message, html);
     if (ok) return;
     // विफल हो तो नीचे SMTP आज़मा लेते हैं (स्थानीय विकास में वह चल जाता है)
   }
@@ -348,6 +406,7 @@ async function sendEmail(email, subject, message) {
     to: email,
     subject,
     text: message,
+    ...(html ? { html } : {}), // Resend की तरह यहाँ भी — text हमेशा मौजूद रहता है, html अतिरिक्त है
   }).catch((err) => {
     console.error('असली ईमेल भेजने में त्रुटि:', err.message);
   });
@@ -382,19 +441,87 @@ function isEmail(identifier) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 }
 
+// ============================================================
+// OTP ईमेल — HTML टेम्पलेट (ShaktiCop ब्रांडिंग के साथ)
+//
+// पूरी तरह inline CSS, कोई बाहरी image/font नहीं — ज़्यादातर ईमेल क्लाइंट
+// (Gmail, Outlook आदि) बाहरी संसाधन डिफ़ॉल्ट रूप से ब्लॉक कर देते हैं, इसलिए
+// self-contained रखना ज़रूरी है। table-आधारित layout पुराने email renderer
+// के साथ भी सही दिखने के लिए। plain-text संस्करण (ऊपर `message`) हमेशा साथ
+// जाता है — यह सिर्फ़ एक अतिरिक्त, बेहतर दिखने वाला विकल्प है।
+// ============================================================
+function buildOtpEmailHtml(otpCode, expiryMinutes, locale) {
+  const en = locale === 'en';
+  const heading = en ? 'Your ShaktiCop OTP' : 'आपका ShaktiCop OTP';
+  const greeting = en
+    ? 'Use the code below to continue. This code is valid for a limited time.'
+    : 'नीचे दिया गया कोड इस्तेमाल करके आगे बढ़ें। यह कोड सीमित समय के लिए वैध है।';
+  const expiryLine = en
+    ? `This OTP is valid for <strong>${expiryMinutes} minutes</strong>.`
+    : `यह OTP <strong>${expiryMinutes} मिनट</strong> के लिए वैध है।`;
+  const warning = en
+    ? 'Never share this OTP with anyone, including anyone claiming to be from ShaktiCop or UP Police. If you did not request this, you can safely ignore this email.'
+    : 'यह OTP किसी के साथ साझा न करें — चाहे वह ShaktiCop या UP Police का प्रतिनिधि होने का दावा ही क्यों न करे। अगर आपने यह अनुरोध नहीं किया, तो इस ईमेल को अनदेखा करें।';
+  const footer = en ? 'UP Police — Women Safety Platform' : 'उत्तर प्रदेश पुलिस — महिला सुरक्षा प्लेटफ़ॉर्म';
+
+  // ⚠️ कोई भी variable सीधे template में जोड़ने से पहले HTML-escape करना ज़रूरी है —
+  // otpCode सिर्फ़ अंक होते हैं (generateOtpCode से), पर यह आदत आगे भी सुरक्षित रखती है।
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  return `<!doctype html>
+<html lang="${en ? 'en' : 'hi'}">
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:480px;width:100%;">
+            <tr>
+              <td style="background:#0b2545;padding:20px 28px;">
+                <span style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">ShaktiCop</span>
+                <div style="color:#c9d4e3;font-size:12px;margin-top:2px;">${footer}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <h1 style="margin:0 0 12px;font-size:18px;color:#111827;">${esc(heading)}</h1>
+                <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.5;">${esc(greeting)}</p>
+                <div style="background:#f3f4f6;border-radius:6px;padding:16px;text-align:center;margin-bottom:20px;">
+                  <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0b2545;">${esc(otpCode)}</span>
+                </div>
+                <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">${expiryLine}</p>
+                <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;border-top:1px solid #e5e7eb;padding-top:14px;">⚠️ ${esc(warning)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 // 🆕 locale — यह DB में कहीं भी सेव नहीं होता, सिर्फ़ इसी एक request के लिए इस्तेमाल
 // होता है (stateless)। मोबाइल ऐप हर OTP-request के साथ अपनी मौजूदा भाषा भेजता है,
 // इसलिए schema/sync बदलने की ज़रूरत नहीं पड़ी — OTP का SMS/ईमेल अब सही भाषा में जाता है।
 // alsoEmail — वैकल्पिक। मोबाइल पर OTP भेजने के साथ-साथ इस ईमेल पर भी वही OTP जाता है।
 async function createAndSendOtp(mobile, purpose = 'signup', locale = 'hi', alsoEmail = null) {
-  const otpCode = generateOtpCode();
-  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
   // 🐛 बग फ़िक्स: पहले पहचानकर्ता (खासकर ईमेल) जैसा टाइप हुआ वैसा ही सेव होता था।
   // अलग-अलग फ़ोन के keyboard अलग auto-capitalize व्यवहार करते हैं (जैसे पहला अक्षर
   // बड़ा करना) — नतीजा: OTP मांगते समय "Priya@x.com" सेव हुआ, पर सत्यापित करते समय
   // दूसरे फ़ोन पर "priya@x.com" टाइप हुआ तो मेल न खाकर "OTP गलत है" दिखता — जबकि OTP
   // सही था। अब हमेशा trim + lowercase करके सेव व मिलान होता है।
   const normalized = mobile.trim().toLowerCase();
+
+  // 🆕 Resend cooldown — यह चेक सबसे पहले, DB/provider तक पहुंचने से पहले। सक्रिय
+  // हो तो कुछ नहीं होता (न नया OTP बनता, न DB पंक्ति, न कोई SMS/ईमेल) — caller को
+  // हमेशा जैसा ही सामान्य जवाब मिलता है, इसलिए यह चुपचाप कोई जानकारी लीक नहीं करता।
+  const cooldownKey = `${normalized}|${purpose}`;
+  if (await isInResendCooldown(cooldownKey)) {
+    return undefined;
+  }
+
+  const otpCode = generateOtpCode();
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
   // 🐛 बग फ़िक्स (सुरक्षा): पहले हर बार सिर्फ़ नई पंक्ति जुड़ती थी, पुरानी को छुआ ही
   // नहीं जाता — यानी एक साथ कई OTP वैध रहते। नतीजा: अगर किसी ने पुराना SMS देख लिया
@@ -430,9 +557,17 @@ async function createAndSendOtp(mobile, purpose = 'signup', locale = 'hi', alsoE
   //     में मानक भी है।
   const message = `Your ShaktiCop OTP is ${otpCode}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share it with anyone. UP Police`;
   const emailSubject = locale === 'en' ? 'ShaktiCop Login OTP' : 'ShaktiCop लॉगिन OTP';
+  const emailHtml = buildOtpEmailHtml(otpCode, OTP_EXPIRY_MINUTES, locale);
+
+  // 🆕 cooldown यहीं से चालू होता है — dispatch शुरू होने पर ही, भले ही आगे
+  // SMS/ईमेल भेजना विफल हो जाए (वह त्रुटि हमेशा चुपचाप संभली जाती है, नीचे देखें)।
+  // असल गारंटी चाहिए वह यह है: "इतनी जल्दी दोबारा DB में नई पंक्ति मत बनाओ", न कि
+  // "भेजना पक्का सफल हुआ हो तभी रोको" — वरना provider की एक क्षणिक त्रुटि cooldown
+  // को बेअसर कर देती और वही तेज़ resend-दुरुपयोग वापस आ जाता।
+  await markResendSent(cooldownKey);
 
   if (isEmail(normalized)) {
-    await sendEmail(normalized, emailSubject, message);
+    await sendEmail(normalized, emailSubject, message, emailHtml);
   } else {
     await sendSms(normalized, message, otpCode);
 
@@ -448,7 +583,7 @@ async function createAndSendOtp(mobile, purpose = 'signup', locale = 'hi', alsoE
     //    यहाँ try/catch सिर्फ़ अतिरिक्त सुरक्षा के लिए है, ज़रूरत नहीं पड़ती।
     if (alsoEmail && isEmail(String(alsoEmail).trim().toLowerCase())) {
       try {
-        await sendEmail(String(alsoEmail).trim(), emailSubject, message);
+        await sendEmail(String(alsoEmail).trim(), emailSubject, message, emailHtml);
       } catch (e) {
         console.error('OTP ईमेल नहीं भेजा जा सका (SMS भेजा जा चुका है):', e.message);
       }

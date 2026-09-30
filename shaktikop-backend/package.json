@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node --test",
     "db:migrate": "psql \"$DATABASE_URL\" -f src/db/schema.sql",
     "db:migrate:neon": "node src/scripts/migrateNeon.js",
     "db:migrate:neon:dry-run": "node src/scripts/migrateNeon.js --dry-run",
