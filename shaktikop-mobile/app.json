@@ -2,6 +2,7 @@
   "expo": {
     "name": "ShaktiCop",
     "slug": "shaktikop",
+    "owner": "copshakti",
     "version": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -20,8 +21,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "शिकायत के साथ आपकी लाइव लोकेशन जोड़ने के लिए।",
         "NSPhotoLibraryUsageDescription": "शिकायत के साथ फोटो प्रमाण संलग्न करने के लिए।",
-        "NSMicrophoneUsageDescription": "शिकायत के साथ आवाज़ रिकॉर्ड करने के लिए।",
-        "NSFaceIDUsageDescription": "ऐप को सुरक्षित रखने के लिए Face ID/फ़िंगरप्रिंट से अनलॉक करने के लिए (सिर्फ़ तभी जब आप इसे Settings में स्वयं चालू करें)।"
+        "NSMicrophoneUsageDescription": "बोलकर शिकायत का विवरण भरने के लिए माइक्रोफ़ोन एक्सेस चाहिए।",
+        "NSFaceIDUsageDescription": "ऐप को सुरक्षित रखने के लिए Face ID/फ़िंगरप्रिंट से अनलॉक करने के लिए (सिर्फ़ तभी जब आप इसे Settings में स्वयं चालू करें)।",
+        "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को टेक्स्ट में बदलने के लिए।"
       }
     },
     "android": {
@@ -40,7 +42,14 @@
         "FOREGROUND_SERVICE_LOCATION",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -57,7 +66,10 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "enableSeparateBuildPerCPUArchitecture": false,
             "universalApk": true,
-            "buildArchs": ["arm64-v8a", "armeabi-v7a"]
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a"
+            ]
           }
         }
       ],
@@ -86,6 +98,11 @@
           "cameraPermission": "शिकायत की QR पावती स्कैन करने के लिए कैमरा एक्सेस चाहिए।"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f00a3842-3e83-42dc-9e53-2f8011ee9eab"
+      }
+    }
   }
 }
