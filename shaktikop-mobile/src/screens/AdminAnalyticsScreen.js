@@ -184,11 +184,20 @@ export default function AdminAnalyticsScreen({ route, navigation }) {
           DSP/ASP/SSP/IG/DIG को कोई संकेत ही नहीं मिलता था कि वे किस दायरे का
           डेटा देख रहे हैं, जिससे भ्रम हो सकता था (जैसे लगे कि यह पूरे राज्य का है)। */}
       {user?.rangeDistricts && user.rangeDistricts.length > 0 ? (
-        <Text style={styles.scopeNote}>📍 दिखाया जा रहा डेटा आपके Range ({user.rangeDistricts.map((d) => tt(d)).join(', ')}) तक सीमित है</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>दिखाया जा रहा डेटा आपके Range ({user.rangeDistricts.map((d) => tt(d)).join(', ')}) तक सीमित है</Text>
+        </View>
       ) : user?.circleStations && user.circleStations.length > 0 ? (
-        <Text style={styles.scopeNote}>📍 दिखाया जा रहा डेटा आपके सर्किल के थानों ({user.circleStations.map((s) => tt(s)).join(', ')}) तक सीमित है</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>दिखाया जा रहा डेटा आपके सर्किल के थानों ({user.circleStations.map((s) => tt(s)).join(', ')}) तक सीमित है</Text>
+        </View>
       ) : (user?.adminRole === 'district_admin' || (user?.adminRole === 'monitor' && user?.district)) ? (
-        <Text style={styles.scopeNote}>📍 दिखाया जा रहा डेटा सिर्फ़ {tt(user.district)} ज़िले का है</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>दिखाया जा रहा डेटा सिर्फ़ {tt(user.district)} ज़िले का है</Text>
+        </View>
       ) : null}
 
       {/* सक्रिय फ़िल्टर-चिप्स */}
@@ -369,7 +378,7 @@ export default function AdminAnalyticsScreen({ route, navigation }) {
       <View style={{ marginTop: 6 }}>
         <PowerSectionToggle
           icon="warning-outline"
-          title={tt('⚠️ SLA जोखिम — तुरंत ध्यान चाहिए')}
+          title={tt('SLA जोखिम — तुरंत ध्यान चाहिए')}
           activeKey="sla"
           powerSection={powerSection}
           onToggle={togglePowerSection}
@@ -489,12 +498,22 @@ function PowerSectionToggle({ icon, title, activeKey, powerSection, onToggle, ch
   );
 }
 
+// साझा त्रुटि-पंक्ति — आइकॉन + संदेश, इस स्क्रीन के हर power-card में एक जैसी दिखे
+function ErrorRow({ message }) {
+  return (
+    <View style={styles.inlineWarnRow}>
+      <Ionicons name="alert-circle" size={15} color={colors.alert} />
+      <Text style={styles.powerErrorText}>{message}</Text>
+    </View>
+  );
+}
+
 // 🆕 SLA जोखिम — अभी खुली शिकायतें जो अपनी समय-सीमा के करीब/पार हैं
 function SlaAtRiskCard({ data, loading, error, navigation }) {
   if (loading) return <LoadingView />;
-  if (error) return <Text style={styles.powerErrorText}>⚠️ {error}</Text>;
+  if (error) return <ErrorRow message={error} />;
   if (!data || data.items.length === 0) {
-    return <Text style={styles.powerEmptyText}>{tt('✔ फ़िलहाल कोई शिकायत SLA-जोखिम में नहीं है।')}</Text>;
+    return <Text style={styles.powerEmptyText}>{tt('फ़िलहाल कोई शिकायत SLA-जोखिम में नहीं है।')}</Text>;
   }
   return (
     <View>
@@ -514,7 +533,7 @@ function SlaAtRiskCard({ data, loading, error, navigation }) {
             </Text>
           </View>
           <Text style={[styles.powerRowBadge, it.breached && { color: colors.alert }]}>
-            {it.hoursOpen} {tt('घं.')}{it.breached ? ' ⚠️' : ''}
+            {it.hoursOpen} {tt('घं.')}
           </Text>
         </TouchableOpacity>
       ))}
@@ -525,7 +544,7 @@ function SlaAtRiskCard({ data, loading, error, navigation }) {
 // 🆕 दोहराए-आरोपी — पूरे scope में सबसे ज़्यादा शिकायतों वाले आरोपी
 function RepeatOffendersCard({ data, loading, error, navigation }) {
   if (loading) return <LoadingView />;
-  if (error) return <Text style={styles.powerErrorText}>⚠️ {error}</Text>;
+  if (error) return <ErrorRow message={error} />;
   if (!data || data.length === 0) {
     return <Text style={styles.powerEmptyText}>{tt('कोई दोहराया गया आरोपी नहीं मिला।')}</Text>;
   }
@@ -570,9 +589,12 @@ function SosResponseCard({ data, loading, error }) {
       </View>
 
       {data.neverSeen > 0 && (
-        <Text style={[styles.powerHint, { color: colors.alert, fontWeight: '700' }]}>
-          ⚠️ {data.neverSeen} {tt('SOS ऐसे हैं जिन्हें किसी अधिकारी ने अब तक खोला ही नहीं')}
-        </Text>
+        <View style={styles.inlineWarnRow}>
+          <Ionicons name="warning" size={14} color={colors.alert} />
+          <Text style={[styles.powerHint, { color: colors.alert, fontWeight: '700' }]}>
+            {data.neverSeen} {tt('SOS ऐसे हैं जिन्हें किसी अधिकारी ने अब तक खोला ही नहीं')}
+          </Text>
+        </View>
       )}
 
       {data.byStation?.length > 0 && (
@@ -582,7 +604,7 @@ function SosResponseCard({ data, loading, error }) {
             <View key={i} style={styles.victimRow}>
               <Text style={styles.victimRef}>{tt(s.station)} · {tt(s.district)}</Text>
               <Text style={styles.victimMeta}>
-                {s.totalSos} SOS{s.neverSeen > 0 ? ` · ⚠️ ${s.neverSeen} ${tt('अनदेखे')}` : ''}
+                {s.totalSos} SOS{s.neverSeen > 0 ? ` · ${s.neverSeen} ${tt('अनदेखे')}` : ''}
                 {s.avgMinutes != null ? ` · ${s.avgMinutes} ${tt('मिनट औसत')}` : ''}
               </Text>
             </View>
@@ -621,7 +643,7 @@ function RepeatVictimsCard({ data, loading, error }) {
         <View key={i} style={styles.victimRow}>
           <Text style={styles.victimRef}>
             #{v.ref} · {v.complaintCount} {tt('शिकायतें')}
-            {v.sosCount > 0 ? ` · 🆘 ${v.sosCount}` : ''}
+            {v.sosCount > 0 ? ` · SOS ${v.sosCount}` : ''}
           </Text>
           <Text style={styles.victimMeta}>
             {(v.categories || []).map((x) => tt(x)).join(', ')}
@@ -636,7 +658,7 @@ function RepeatVictimsCard({ data, loading, error }) {
 
 function OfficerWorkloadCard({ data, loading, error }) {
   if (loading) return <LoadingView />;
-  if (error) return <Text style={styles.powerErrorText}>⚠️ {error}</Text>;
+  if (error) return <ErrorRow message={error} />;
   if (!data || data.officers.length === 0) {
     return <Text style={styles.powerEmptyText}>{tt('कोई डेटा उपलब्ध नहीं।')}</Text>;
   }
@@ -646,11 +668,11 @@ function OfficerWorkloadCard({ data, loading, error }) {
       {data.officers.slice(0, 15).map((o) => (
         <View key={o.id} style={[styles.powerRow, o.overloaded && styles.powerRowBreached]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.powerRowTitle}>{o.name} {o.overloaded ? '⚠️' : ''}</Text>
+            <Text style={styles.powerRowTitle}>{o.name}</Text>
             <Text style={styles.powerRowSub}>{tt(o.station || '—')} · {tt(o.district || '—')}</Text>
           </View>
           <Text style={[styles.powerRowBadge, o.overloaded && { color: colors.alert }]}>
-            {o.activeCases} {tt('सक्रिय')}{o.activeSos > 0 ? ` · 🆘${o.activeSos}` : ''}
+            {o.activeCases} {tt('सक्रिय')}{o.activeSos > 0 ? ` · SOS ${o.activeSos}` : ''}
           </Text>
         </View>
       ))}
@@ -798,6 +820,7 @@ const styles = StyleSheet.create({
   powerHint: { fontSize: 11, color: colors.inkGrey, marginBottom: 10, lineHeight: 15 },
   powerEmptyText: { fontSize: 12.5, color: colors.sage, fontWeight: '600' },
   powerErrorText: { fontSize: 12.5, color: colors.alert, fontWeight: '600' },
+  inlineWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 10 },
   powerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.sand, borderRadius: radius.sm, padding: 10, marginBottom: 6, gap: 8 },
   powerRowBreached: { backgroundColor: '#FDEDEA', borderWidth: 1, borderColor: colors.alert },
   powerRowTitle: { fontSize: 12.5, fontWeight: '700', color: colors.inkNavy },
@@ -807,7 +830,8 @@ const styles = StyleSheet.create({
   filterBtnText: { fontSize: 12.5, fontWeight: '700', color: colors.white },
   filterBadge: { backgroundColor: colors.white, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   filterBadgeText: { fontSize: 10, fontWeight: '800', color: colors.shaktiMaroon },
-  scopeNote: { fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700', marginBottom: 10 },
+  scopeNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 10 },
+  scopeNote: { flex: 1, fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700' },
   explorerBanner: {
     flexDirection: 'row',
     alignItems: 'center',

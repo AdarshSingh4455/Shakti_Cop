@@ -97,24 +97,24 @@ export const ALL_STATUSES = [...STATUSES, REJECTED_STATUS];
 // ✅ अब सर्वर से आता है (Admin "योजना, हेल्पलाइन" से प्रबंधित करता है) — नीचे fallback है
 // ============================================================
 export const HELPLINES = [
-  { label: tt('महिला हेल्पलाइन (UP)'), number: '1090', icon: '🚺', color: '#D6336C' },
-  { label: tt('पुलिस आपातकाल'), number: '112', icon: '🚨', color: '#0F2A44' },
-  { label: tt('महिला हेल्पलाइन (राष्ट्रीय)'), number: '181', icon: '🏛️', color: '#9B2647' },
-  { label: tt('साइबर क्राइम'), number: '1930', icon: '💻', color: '#1B4A73' },
-  { label: tt('चाइल्ड हेल्पलाइन'), number: '1098', icon: '👶', color: '#C98A2B' },
-  { label: tt('एम्बुलेंस'), number: '108', icon: '🚑', color: '#2E7D5B' },
-  { label: tt('फायर ब्रिगेड'), number: '101', icon: '🚒', color: '#B23A2E' },
-  { label: tt('CM हेल्पलाइन (UP)'), number: '1076', icon: '📋', color: '#6B4E9B' },
+  { label: tt('महिला हेल्पलाइन (UP)'), number: '1090', icon: 'woman-outline', color: '#D6336C' },
+  { label: tt('पुलिस आपातकाल'), number: '112', icon: 'alert-circle-outline', color: '#0F2A44' },
+  { label: tt('महिला हेल्पलाइन (राष्ट्रीय)'), number: '181', icon: 'business-outline', color: '#9B2647' },
+  { label: tt('साइबर क्राइम'), number: '1930', icon: 'laptop-outline', color: '#1B4A73' },
+  { label: tt('चाइल्ड हेल्पलाइन'), number: '1098', icon: 'happy-outline', color: '#C98A2B' },
+  { label: tt('एम्बुलेंस'), number: '108', icon: 'medkit-outline', color: '#2E7D5B' },
+  { label: tt('फायर ब्रिगेड'), number: '101', icon: 'flame-outline', color: '#B23A2E' },
+  { label: tt('CM हेल्पलाइन (UP)'), number: '1076', icon: 'clipboard-outline', color: '#6B4E9B' },
 ];
 
-// लेबल के आधार पर सही इमोजी आइकन — सर्वर पर पुराने Ionicons नाम (जैसे "woman",
-// "shield-checkmark") सेव हो सकते हैं, जो emoji की जगह टूटा-फूटा टेक्स्ट दिखाते थे।
-// अब आइकन हमेशा यहीं से मिलेगा (label के आधार पर), सर्वर की icon वैल्यू पर भरोसा नहीं करते।
+// लेबल के आधार पर सही Ionicons नाम — सर्वर पर पुराना/अलग icon नाम सेव हो सकता है
+// (जो शायद अब मान्य Ionicons नाम न हो)। इसलिए आइकन हमेशा यहीं से मिलेगा (label के
+// आधार पर), सर्वर की icon वैल्यू पर भरोसा नहीं करते।
 const HELPLINE_ICON_BY_LABEL = HELPLINES.reduce((acc, h) => {
   acc[h.label] = h.icon;
   return acc;
 }, {});
-const DEFAULT_HELPLINE_ICON = '📞';
+const DEFAULT_HELPLINE_ICON = 'call-outline';
 
 // सर्वर से मिला असली डेटा यहाँ भरा जाता है (AppContext से एक बार कॉल होता है)
 export function setHelplinesData(serverHelplines) {

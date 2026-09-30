@@ -121,7 +121,7 @@ async function getAtr(req, res) {
     events.push({
       at: row.sos_triggered_at,
       kind: 'sos',
-      title: '🆘 SOS दबाया गया',
+      title: 'SOS दबाया गया',
       actor: row.is_anonymous ? 'गुमनाम शिकायतकर्ता' : row.citizen_name,
       actorRole: 'citizen',
       detail: 'आपात सहायता का अनुरोध',

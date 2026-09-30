@@ -834,7 +834,7 @@ export function AppProvider({ children }) {
       if (delta > 2.2 && !shakeCooldownRef.current) {
         shakeCooldownRef.current = true;
         Alert.alert(
-          '🆘 SOS भेजें?',
+          'SOS भेजें?',
           'फोन हिलाने की पहचान हुई। क्या आप तुरंत SOS अलर्ट भेजना चाहते हैं?',
           [
             { text: tt('नहीं'), style: 'cancel', onPress: () => { shakeCooldownRef.current = false; } },
@@ -844,7 +844,7 @@ export function AppProvider({ children }) {
               onPress: async () => {
                 try {
                   await quickSos();
-                  Alert.alert('🆘 SOS भेज दिया गया', 'एडमिन को आपकी लोकेशन के साथ सूचना भेज दी गई है।');
+                  Alert.alert('SOS भेज दिया गया', 'एडमिन को आपकी लोकेशन के साथ सूचना भेज दी गई है।');
                 } catch (e) {
                   Alert.alert('त्रुटि', e.message);
                 }

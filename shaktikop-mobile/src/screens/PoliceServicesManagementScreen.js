@@ -160,9 +160,12 @@ export default function PoliceServicesManagementScreen() {
           <Text style={styles.cardGroup}>{tt(item.group)}</Text>
           <Text style={styles.cardTitle}>{tt(item.title)}</Text>
           {!!item.desc && <Text style={styles.cardDesc} numberOfLines={2}>{tt(item.desc)}</Text>}
-          <Text style={styles.cardTarget} numberOfLines={1}>
-            {item.internal ? `📱 ${item.internal}` : `🔗 ${item.url}`}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name={item.internal ? 'phone-portrait-outline' : 'link-outline'} size={12} color={colors.inkLight} />
+            <Text style={styles.cardTarget} numberOfLines={1}>
+              {item.internal || item.url}
+            </Text>
+          </View>
         </View>
         <Switch value={item.isActive} onValueChange={() => toggleActive(item)} />
       </View>

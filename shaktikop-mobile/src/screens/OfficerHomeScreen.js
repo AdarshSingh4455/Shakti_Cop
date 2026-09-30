@@ -252,7 +252,7 @@ export default function OfficerHomeScreen({ navigation }) {
           onPress={() => goToTable({ dateFrom: todayStart })}
         />
         <DashboardStatCard
-          emoji="🆘"
+          icon="warning"
           value={counts.sos}
           label={tt('SOS शिकायतें')}
           color="#8B1A1A"

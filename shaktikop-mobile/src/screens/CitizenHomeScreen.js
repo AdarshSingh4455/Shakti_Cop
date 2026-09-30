@@ -163,7 +163,7 @@ export default function CitizenHomeScreen({ navigation, route }) {
               onPress={() => navigation.navigate('CitizenSosAlerts')}
               activeOpacity={0.85}
             >
-              <Text style={styles.sosBannerEmoji}>🆘</Text>
+              <Ionicons name="warning" size={22} color={colors.white} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.sosBannerTitle}>
                   {mySosActive > 0 ? t('आपका SOS सक्रिय है') : t('मेरे SOS अलर्ट')}

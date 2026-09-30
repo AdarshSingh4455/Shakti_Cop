@@ -528,7 +528,7 @@ export default function CategoryComplaintFormScreen({ route, navigation }) {
       return;
     }
     if (has('voiceRecording') && !voiceNoteUri) {
-      Alert.alert(tt('जानकारी अधूरी है'), tt('कृपया 🎤 दबाकर अपनी शिकायत बोलकर रिकॉर्ड करें।'));
+      Alert.alert(tt('जानकारी अधूरी है'), tt('कृपया माइक्रोफ़ोन दबाकर अपनी शिकायत बोलकर रिकॉर्ड करें।'));
       return;
     }
     if (has('vehicle') && !vehicleNumber.trim()) {
@@ -629,7 +629,7 @@ export default function CategoryComplaintFormScreen({ route, navigation }) {
 
     if (wasOffline) {
       Alert.alert(
-        tt('📴 इंटरनेट नहीं मिला'),
+        tt('इंटरनेट नहीं मिला'),
         tt('आपकी शिकायत डिवाइस पर सुरक्षित कर ली गई है — इंटरनेट वापस आते ही यह अपने-आप भेज दी जाएगी। कृपया थोड़ी देर बाद डैशबोर्ड में देखें।'),
         [{ text: tt('ठीक है'), onPress: () => navigation.navigate('CitizenTabs') }]
       );
@@ -806,7 +806,7 @@ export default function CategoryComplaintFormScreen({ route, navigation }) {
       {has('voiceRecording') && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{tt('अपनी शिकायत बोलकर दर्ज करें')}</Text>
-          <Text style={styles.hint}>{tt('🎤 दबाकर बोलना शुरू करें, फिर रोकें — सुनकर पक्का करें, ग़लत हो तो हटाकर दोबारा रिकॉर्ड करें।')}</Text>
+          <Text style={styles.hint}>{tt('दबाकर बोलना शुरू करें, फिर रोकें — सुनकर पक्का करें, ग़लत हो तो हटाकर दोबारा रिकॉर्ड करें।')}</Text>
 
           {!voiceNoteUri && (
             <>
@@ -835,7 +835,8 @@ export default function CategoryComplaintFormScreen({ route, navigation }) {
               <TouchableOpacity style={styles.playbackBtn} onPress={playPauseRecording}>
                 <Ionicons name={isPlayingBack ? 'pause' : 'play'} size={20} color={colors.white} />
               </TouchableOpacity>
-              <Text style={styles.playbackLabel}>{tt('✔ रिकॉर्डिंग तैयार है')}</Text>
+              <Ionicons name="checkmark-circle" size={15} color={colors.sage} />
+              <Text style={styles.playbackLabel}>{tt('रिकॉर्डिंग तैयार है')}</Text>
               <TouchableOpacity style={styles.resetBtn} onPress={deleteRecording}>
                 <Ionicons name="refresh" size={15} color={colors.alert} />
                 <Text style={styles.resetBtnText}>{tt('रीसेट')}</Text>
@@ -850,7 +851,7 @@ export default function CategoryComplaintFormScreen({ route, navigation }) {
         <TouchableOpacity style={styles.locBtn} onPress={() => getLiveLocation(false)} disabled={locBusy}>
           <Ionicons name="location-outline" size={16} color={colors.shaktiMaroon} />
           <Text style={styles.locBtnText}>
-            {locBusy ? 'लोकेशन प्राप्त हो रही है…' : coords ? 'लाइव लोकेशन जुड़ गई ✓' : 'लाइव लोकेशन जोड़ें'}
+            {locBusy ? 'लोकेशन प्राप्त हो रही है…' : coords ? 'लाइव लोकेशन जुड़ गई' : 'लाइव लोकेशन जोड़ें'}
           </Text>
         </TouchableOpacity>
         {coords && (
@@ -869,8 +870,8 @@ export default function CategoryComplaintFormScreen({ route, navigation }) {
             {accuracyM != null && (
               <Text style={accuracyM <= 30 ? styles.accGood : styles.accWeak}>
                 {accuracyM <= 30
-                  ? `🎯 सटीकता: ±${accuracyM} मीटर`
-                  : `⚠ सटीकता कमज़ोर: ±${accuracyM} मीटर — खुली जगह पर जाकर दोबारा दबाएं`}
+                  ? `सटीकता: ±${accuracyM} मीटर`
+                  : `सटीकता कमज़ोर: ±${accuracyM} मीटर — खुली जगह पर जाकर दोबारा दबाएं`}
               </Text>
             )}
           </View>

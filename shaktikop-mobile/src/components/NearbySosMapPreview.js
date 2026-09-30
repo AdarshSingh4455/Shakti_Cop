@@ -41,7 +41,7 @@ export default function NearbySosMapPreview({ complaints, onPress }) {
             id: c.id,
             latitude: Number(c.liveLat),
             longitude: Number(c.liveLng),
-            title: `🆘 ${c.id}`,
+            title: `${c.id}`,
             description: c.victimName || c.category,
             color: '#8E2A46',
           }))}

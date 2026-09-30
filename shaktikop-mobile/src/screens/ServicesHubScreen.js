@@ -32,7 +32,7 @@ export default function ServicesHubScreen({ navigation }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
       <View style={styles.headCard}>
-        <Text style={styles.headEmoji}>🤝</Text>
+        <Ionicons name="people-outline" size={26} color={colors.white} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headTitle}>{tt('सहायता सेवाएं')}</Text>
           <Text style={styles.headSub}>
@@ -54,7 +54,7 @@ export default function ServicesHubScreen({ navigation }) {
         <View key={s.key} style={styles.card}>
           <View style={styles.cardTop}>
             <View style={styles.emojiBox}>
-              <Text style={styles.emoji}>{s.emoji}</Text>
+              <Ionicons name={s.icon} size={20} color={colors.shaktiMaroon} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{tt(s.label)}</Text>

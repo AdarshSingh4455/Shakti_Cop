@@ -398,7 +398,7 @@ function CitizenDrawer({ logout }) {
       <Drawer.Screen
         name="CitizenSosAlerts"
         component={SosAlertsScreen}
-        options={{ title: tt('🆘 SOS अलर्ट'), drawerLabel: tt('🆘 SOS अलर्ट') }}
+        options={{ title: tt('SOS अलर्ट'), drawerLabel: tt('SOS अलर्ट') }}
       />
       <Drawer.Screen
         name="CitizenAllComplaints"
@@ -422,9 +422,9 @@ function CitizenDrawer({ logout }) {
           component={MyServiceRequestsScreen}
           initialParams={{ type: s.key }}
           options={{
-            title: `${s.emoji} ${tt(s.label)}`,
-            drawerLabel: `${s.emoji} ${tt(s.label)}`,
-            drawerIcon: () => null,
+            title: tt(s.label),
+            drawerLabel: tt(s.label),
+            drawerIcon: ({ color, size }) => <Ionicons name={s.icon} size={size} color={color} />,
           }}
         />
       ))}
@@ -622,7 +622,7 @@ function OfficerDrawer({ logout }) {
       <Drawer.Screen
         name="OfficerSosAlerts"
         component={SosAlertsScreen}
-        options={{ title: tt('🆘 SOS अलर्ट'), drawerLabel: tt('🆘 SOS अलर्ट') }}
+        options={{ title: tt('SOS अलर्ट'), drawerLabel: tt('SOS अलर्ट') }}
       />
       {/* 🆕 Performance Analytics — यह screen भी पहले किसी route से जुड़ी ही नहीं थी */}
       <Drawer.Screen
@@ -643,8 +643,9 @@ function OfficerDrawer({ logout }) {
             component={ServiceRequestsManagementScreen}
             initialParams={{ type: s.key }}
             options={{
-              title: `${s.emoji} ${tt(s.label)}`,
-              drawerLabel: `${s.emoji} ${tt(s.label)}`,
+              title: tt(s.label),
+              drawerLabel: tt(s.label),
+              drawerIcon: ({ color, size }) => <Ionicons name={s.icon} size={size} color={color} />,
             }}
           />
         ))}
@@ -1032,7 +1033,7 @@ function AdminDrawer({ logout }) {
       <Drawer.Screen
         name="AdminSosAlerts"
         component={SosAlertsScreen}
-        options={{ title: tt('🆘 SOS अलर्ट'), drawerLabel: tt('🆘 SOS अलर्ट') }}
+        options={{ title: tt('SOS अलर्ट'), drawerLabel: tt('SOS अलर्ट') }}
       />
       {isSuperAdmin && (
         <Drawer.Screen
@@ -1075,9 +1076,9 @@ function AdminDrawer({ logout }) {
             component={ServiceRequestsManagementScreen}
             initialParams={{ type: s.key }}
             options={{
-              title: `${s.emoji} ${tt(s.label)}`,
-              drawerLabel: `${s.emoji} ${tt(s.label)}`,
-              drawerIcon: () => null,
+              title: tt(s.label),
+              drawerLabel: tt(s.label),
+              drawerIcon: ({ color, size }) => <Ionicons name={s.icon} size={size} color={color} />,
             }}
           />
         ))}

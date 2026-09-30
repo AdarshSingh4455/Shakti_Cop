@@ -898,8 +898,8 @@ async function updateStatus(req, res) {
 
   // निस्तारित होने पर नागरिक और सभी एडमिन को सूचना भेजें
   if (status === 'निस्तारित') {
-    sendPushNotification(citizenPushToken, '✔ आपकी शिकायत निस्तारित हुई', `शिकायत ${id} का निस्तारण कर दिया गया है।`, { complaintId: id });
-    createNotification({ recipientRole: 'citizen', recipientId: citizenId, title: '✔ आपकी शिकायत निस्तारित हुई', body: `शिकायत ${id} का निस्तारण कर दिया गया है।`, data: { complaintId: id } });
+    sendPushNotification(citizenPushToken, 'आपकी शिकायत निस्तारित हुई', `शिकायत ${id} का निस्तारण कर दिया गया है।`, { complaintId: id });
+    createNotification({ recipientRole: 'citizen', recipientId: citizenId, title: 'आपकी शिकायत निस्तारित हुई', body: `शिकायत ${id} का निस्तारण कर दिया गया है।`, data: { complaintId: id } });
     // 🐛 बग फ़िक्स: यह सूचना पूरे राज्य के हर admin को जाती थी — आगरा के DSP को यह
     // जानने की कोई ज़रूरत नहीं कि लखनऊ की एक शिकायत बंद हुई। अब वही ज़िला-आधारित
     // पैटर्न जो बाक़ी जगह अपनाया जा चुका है (राज्य-स्तर के admin हमेशा शामिल)।
@@ -1120,7 +1120,7 @@ async function triggerSos(req, res) {
     }
   }
 
-  const sosTitle = '🆘 SOS अलर्ट — तुरंत कार्यवाही चाहिए';
+  const sosTitle = 'SOS अलर्ट — तुरंत कार्यवाही चाहिए';
   const sosBody = `${victimNameDecrypted} ने SOS दबाया — शिकायत ${id}${nearestStation ? ` | नज़दीकी थाना: ${nearestStation.name} (${nearestStation.distanceKm} किमी)` : ''}`;
   const sosData = {
     complaintId: id,
@@ -1296,7 +1296,7 @@ async function confirmSafeArrival(req, res) {
 
   // 🐛 बग फ़िक्स: पहले सुरक्षित-पहुंच की पुष्टि पर संबंधित अधिकारी/एडमिन को कोई
   // सूचना नहीं जाती थी — उन्हें पता तभी चलता जब वे ख़ुद दोबारा शिकायत खोलकर देखते।
-  const title = '✅ सुरक्षित पहुंच की पुष्टि';
+  const title = 'सुरक्षित पहुंच की पुष्टि';
   const body = `शिकायत ${id} — नागरिक ने अपनी सुरक्षित पहुंच की पुष्टि कर दी है।`;
   const { officer_id, district, police_station } = current.rows[0];
   if (officer_id) {
@@ -1356,7 +1356,7 @@ async function checkinResponse(req, res) {
   // अब SOS ट्रिगर जैसा ही पैटर्न — नियुक्त अधिकारी + उसी थाने के SHO + संबंधित ज़िले
   // के admins को सूचना जाती है।
   if (status !== 'safe') {
-    const title = status === 'need_help' ? '🆘 सुरक्षा जांच — मदद चाहिए' : '⚠️ सुरक्षा जांच — ध्यान दें';
+    const title = status === 'need_help' ? 'सुरक्षा जांच — मदद चाहिए' : 'सुरक्षा जांच — ध्यान दें';
     const body = `${decryptField(current.rows[0].victim_name)}: ${labels[status]} — शिकायत ${id}`;
     // 🐛 बग फ़िक्स: यह notifications.priority व्यवस्था से जुड़ा नहीं था — "मुझे मदद
     // चाहिए" (need_help) भी SOS जितनी ही आपात-स्थिति है, पर हमेशा डिफ़ॉल्ट 'medium'
@@ -1884,9 +1884,9 @@ async function sendComplaintMessage(req, res) {
     // बाक़ी जगह वाला ही तरीक़ा अपनाया गया है: push preference से तय होती है, पर in-app
     // सूचना हमेशा जाती है — ताकि संदेश कभी खोए नहीं, सिर्फ़ फ़ोन की घंटी रुके।
     if (officer.rows[0]?.push_token && officer.rows[0]?.notification_preferences?.newComplaint !== false) {
-      sendPushNotification(officer.rows[0].push_token, `💬 ${req.user.name} — नया संदेश`, body.trim(), { complaintId: id, chatMessage: true });
+      sendPushNotification(officer.rows[0].push_token, `${req.user.name} — नया संदेश`, body.trim(), { complaintId: id, chatMessage: true });
     }
-    createNotification({ recipientRole: 'officer', recipientId: c.officer_id, title: `💬 ${req.user.name} — नया संदेश`, body: body.trim(), data: { complaintId: id, chatMessage: true } });
+    createNotification({ recipientRole: 'officer', recipientId: c.officer_id, title: `${req.user.name} — नया संदेश`, body: body.trim(), data: { complaintId: id, chatMessage: true } });
   } else if (req.user.role === 'citizen' && c?.police_station) {
     // 🐛 बग फ़िक्स: पहले सूचना सिर्फ़ c.officer_id को जाती थी। यानी जब तक शिकायत किसी
     // अधिकारी को नियुक्त न हो, नागरिक का संदेश *किसी तक पहुँचता ही नहीं* — और यही वह
@@ -1904,16 +1904,16 @@ async function sendComplaintMessage(req, res) {
     for (const sho of shos.rows) {
       // ऊपर वाली शाखा जैसा ही — push preference से तय, in-app हमेशा
       if (sho.push_token && sho.notification_preferences?.newComplaint !== false) {
-        sendPushNotification(sho.push_token, `💬 ${req.user.name} — नया संदेश`, body.trim(), { complaintId: id, chatMessage: true });
+        sendPushNotification(sho.push_token, `${req.user.name} — नया संदेश`, body.trim(), { complaintId: id, chatMessage: true });
       }
-      createNotification({ recipientRole: 'officer', recipientId: sho.id, title: `💬 ${req.user.name} — नया संदेश`, body: body.trim(), data: { complaintId: id, chatMessage: true } });
+      createNotification({ recipientRole: 'officer', recipientId: sho.id, title: `${req.user.name} — नया संदेश`, body: body.trim(), data: { complaintId: id, chatMessage: true } });
     }
   } else if (req.user.role === 'officer' && c?.citizen_id) {
     const citizen = await db.query('SELECT push_token FROM citizens WHERE id = $1', [c.citizen_id]);
     if (citizen.rows[0]?.push_token) {
-      sendPushNotification(citizen.rows[0].push_token, `💬 ${req.user.name} — नया संदेश`, body.trim(), { complaintId: id, chatMessage: true });
+      sendPushNotification(citizen.rows[0].push_token, `${req.user.name} — नया संदेश`, body.trim(), { complaintId: id, chatMessage: true });
     }
-    createNotification({ recipientRole: 'citizen', recipientId: c.citizen_id, title: `💬 ${req.user.name} — नया संदेश`, body: body.trim(), data: { complaintId: id, chatMessage: true } });
+    createNotification({ recipientRole: 'citizen', recipientId: c.citizen_id, title: `${req.user.name} — नया संदेश`, body: body.trim(), data: { complaintId: id, chatMessage: true } });
   }
 
   res.status(201).json(toChatMessage(result.rows[0]));

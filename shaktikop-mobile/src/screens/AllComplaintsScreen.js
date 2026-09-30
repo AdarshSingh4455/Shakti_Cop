@@ -384,11 +384,20 @@ th,td{border:1px solid #999;padding:6px;font-size:12px;mso-number-format:"\\@"}<
 
       {/* 🆕 दायरा-संकेत — सभी monitoring-roles को साफ़ दिखे कि वे किस दायरे की सूची देख रहे हैं */}
       {user?.rangeDistricts && user.rangeDistricts.length > 0 ? (
-        <Text style={styles.scopeNote}>📍 {tt('आपका Range')}: {user.rangeDistricts.map((d) => tt(d)).join(', ')}</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>{tt('आपका Range')}: {user.rangeDistricts.map((d) => tt(d)).join(', ')}</Text>
+        </View>
       ) : user?.circleStations && user.circleStations.length > 0 ? (
-        <Text style={styles.scopeNote}>📍 {tt('आपका सर्किल')}: {user.circleStations.map((s) => tt(s)).join(', ')}</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>{tt('आपका सर्किल')}: {user.circleStations.map((s) => tt(s)).join(', ')}</Text>
+        </View>
       ) : user?.district && (user?.adminRole === 'district_admin' || user?.adminRole === 'monitor') ? (
-        <Text style={styles.scopeNote}>📍 {tt('आपका ज़िला')}: {tt(user.district)}</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>{tt('आपका ज़िला')}: {tt(user.district)}</Text>
+        </View>
       ) : null}
 
       {user?.role === 'admin' && exportMenuOpen && (
@@ -398,7 +407,7 @@ th,td{border:1px solid #999;padding:6px;font-size:12px;mso-number-format:"\\@"}<
               एडमिन को लगता कि पूरी सूची निर्यात हो गई, जबकि फ़ाइल अधूरी होती। */}
           {(hasNextPage || page > 0) && (
             <Text style={styles.exportScopeHint}>
-              ⚠️ {tt('निर्यात सिर्फ़ इसी पेज की शिकायतों का होगा')} ({list.length})
+              {tt('निर्यात सिर्फ़ इसी पेज की शिकायतों का होगा')} ({list.length})
             </Text>
           )}
           <TouchableOpacity style={styles.exportOption} onPress={exportExcel}>
@@ -647,7 +656,8 @@ const styles = StyleSheet.create({
   headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 8 },
   title: { fontSize: 16, fontWeight: '700', color: colors.inkNavy },
   exportScopeHint: { fontSize: 11, color: colors.alert, fontWeight: '700', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4, lineHeight: 15 },
-  scopeNote: { fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700', marginHorizontal: 16, marginTop: 6, marginBottom: 4 },
+  scopeNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginHorizontal: 16, marginTop: 6, marginBottom: 4 },
+  scopeNote: { flex: 1, fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700' },
   filterToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
   filterToggleText: { fontSize: 12, fontWeight: '700', color: colors.inkNavy },
 

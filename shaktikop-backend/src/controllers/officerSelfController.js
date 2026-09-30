@@ -326,9 +326,9 @@ async function requestBackup(req, res) {
   const bodyText = `${req.user.name} ने तुरंत सहायता माँगी है${complaintId ? ` (शिकायत ${complaintId})` : ''}.${mapsLink} ${message || ''}`.trim();
   for (const a of admins.rows) {
     if (a.push_token) {
-      sendPushNotification(a.push_token, '🆘 अधिकारी को Backup चाहिए', bodyText, { officerBackupRequest: true, officerId: req.user.id });
+      sendPushNotification(a.push_token, 'अधिकारी को Backup चाहिए', bodyText, { officerBackupRequest: true, officerId: req.user.id });
     }
-    createNotification({ recipientRole: 'admin', recipientId: a.id, title: '🆘 अधिकारी को Backup चाहिए', body: bodyText, data: { officerBackupRequest: true, complaintId }, priority: 'critical' });
+    createNotification({ recipientRole: 'admin', recipientId: a.id, title: 'अधिकारी को Backup चाहिए', body: bodyText, data: { officerBackupRequest: true, complaintId }, priority: 'critical' });
   }
   logActivity({ actorRole: 'officer', actorId: req.user.id, actorName: req.user.name, action: 'backup_requested', details: `${message || 'तुरंत सहायता चाहिए'} ${mapsLink}`, req });
   res.json({ message: 'Backup अनुरोध सभी एडमिन को भेज दिया गया है' });

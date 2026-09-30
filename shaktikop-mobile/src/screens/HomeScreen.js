@@ -32,9 +32,9 @@ import { fetchAppSettings } from '../services/api';
 // दिन के समय के हिसाब से greeting — हर बार सिर्फ़ "नमस्ते" की जगह थोड़ा व्यक्तिगत एहसास
 function timeGreeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return { text: 'सुप्रभात', emoji: '☀️' };
-  if (hour < 17) return { text: 'नमस्कार', emoji: '🌤️' };
-  return { text: 'शुभ संध्या', emoji: '🌙' };
+  if (hour < 12) return { text: 'सुप्रभात' };
+  if (hour < 17) return { text: 'नमस्कार' };
+  return { text: 'शुभ संध्या' };
 }
 
 const FALLBACK_SLIDES = [
@@ -44,18 +44,18 @@ const FALLBACK_SLIDES = [
 ];
 
 const WELFARE_SCHEMES = [
-  { icon: '👶', tag: 'Financial Aid', title: 'कन्या सुमंगला योजना', desc: 'बेटी की शिक्षा व स्वास्थ्य हेतु सीधा वित्तीय लाभ।', url: 'https://mksy.up.gov.in' },
-  { icon: '💍', tag: 'Marriage Grant', title: 'शादी अनुदान योजना', desc: 'ग़रीब परिवारों की बेटियों के विवाह हेतु आर्थिक सहायता।', url: 'https://shadianudan.upsdc.gov.in' },
-  { icon: '👵', tag: 'Widow Pension', title: 'विधवा पेंशन योजना', desc: 'निराश्रित विधवा महिलाओं हेतु सामाजिक सुरक्षा व पेंशन।', url: 'https://sspy-up.gov.in' },
-  { icon: '🏅', tag: 'Financial Help', title: 'रानी लक्ष्मीबाई महिला एवं बाल सम्मान कोष', desc: 'संकटग्रस्त महिलाओं व बच्चों हेतु आर्थिक सहायता।', url: 'https://msk.upsdc.gov.in' },
-  { icon: '🎓', tag: 'Education Aid', title: 'UP छात्रवृत्ति योजना', desc: 'सभी वर्गों के छात्रों हेतु प्री व पोस्ट मैट्रिक छात्रवृत्ति।', url: 'https://scholarship.up.gov.in' },
+  { icon: 'female-outline', tag: 'Financial Aid', title: 'कन्या सुमंगला योजना', desc: 'बेटी की शिक्षा व स्वास्थ्य हेतु सीधा वित्तीय लाभ।', url: 'https://mksy.up.gov.in' },
+  { icon: 'heart-outline', tag: 'Marriage Grant', title: 'शादी अनुदान योजना', desc: 'ग़रीब परिवारों की बेटियों के विवाह हेतु आर्थिक सहायता।', url: 'https://shadianudan.upsdc.gov.in' },
+  { icon: 'wallet-outline', tag: 'Widow Pension', title: 'विधवा पेंशन योजना', desc: 'निराश्रित विधवा महिलाओं हेतु सामाजिक सुरक्षा व पेंशन।', url: 'https://sspy-up.gov.in' },
+  { icon: 'trophy-outline', tag: 'Financial Help', title: 'रानी लक्ष्मीबाई महिला एवं बाल सम्मान कोष', desc: 'संकटग्रस्त महिलाओं व बच्चों हेतु आर्थिक सहायता।', url: 'https://msk.upsdc.gov.in' },
+  { icon: 'school-outline', tag: 'Education Aid', title: 'UP छात्रवृत्ति योजना', desc: 'सभी वर्गों के छात्रों हेतु प्री व पोस्ट मैट्रिक छात्रवृत्ति।', url: 'https://scholarship.up.gov.in' },
 ];
 
 const SUPPORT_SERVICES = [
-  { icon: '💬', tag: 'Confidential', title: 'काउंसलिंग सहायता', desc: 'लाइसेंस-प्राप्त मनोवैज्ञानिक विशेषज्ञों से मुफ़्त काउंसलिंग।', url: 'https://msk.upsdc.gov.in' },
-  { icon: '⚖️', tag: 'Free Assistance', title: 'कानूनी सहायता (Legal Aid)', desc: 'घरेलू हिंसा व सुरक्षा नियमों पर मुफ़्त वकील रेफ़रल।', url: 'https://msk.upsdc.gov.in' },
-  { icon: '🏫', tag: 'Vocational Training', title: 'जन शिक्षण संस्थान', desc: 'महिलाओं हेतु मुफ़्त कौशल प्रशिक्षण व प्रमाणपत्र।', url: 'https://msk.upsdc.gov.in' },
-  { icon: '🥋', tag: 'Workshops', title: 'आत्मरक्षा प्रशिक्षण', desc: 'मुफ़्त सुरक्षा कार्यशालाएं व आत्मरक्षा प्रमाणीकरण।', url: 'https://msk.upsdc.gov.in' },
+  { icon: 'chatbubble-ellipses-outline', tag: 'Confidential', title: 'काउंसलिंग सहायता', desc: 'लाइसेंस-प्राप्त मनोवैज्ञानिक विशेषज्ञों से मुफ़्त काउंसलिंग।', url: 'https://msk.upsdc.gov.in' },
+  { icon: 'hammer-outline', tag: 'Free Assistance', title: 'कानूनी सहायता (Legal Aid)', desc: 'घरेलू हिंसा व सुरक्षा नियमों पर मुफ़्त वकील रेफ़रल।', url: 'https://msk.upsdc.gov.in' },
+  { icon: 'school-outline', tag: 'Vocational Training', title: 'जन शिक्षण संस्थान', desc: 'महिलाओं हेतु मुफ़्त कौशल प्रशिक्षण व प्रमाणपत्र।', url: 'https://msk.upsdc.gov.in' },
+  { icon: 'fitness-outline', tag: 'Workshops', title: 'आत्मरक्षा प्रशिक्षण', desc: 'मुफ़्त सुरक्षा कार्यशालाएं व आत्मरक्षा प्रमाणीकरण।', url: 'https://msk.upsdc.gov.in' },
 ];
 
 // 04. पुलिस सेवाएं — पूरी सूची PoliceServicesScreen में है (25+ सेवाएं, 6 समूहों में),
@@ -71,7 +71,7 @@ const POLICE_SERVICE_HIGHLIGHTS = [
 const GUIDE_STEPS = [
   { icon: 'shield-checkmark-outline', title: 'शिकायत दर्ज करें', desc: 'नीचे 5 श्रेणियों में से चुनें और कुछ ही मिनटों में शिकायत दर्ज करें।' },
   { icon: 'search-outline', title: 'स्थिति ट्रैक करें', desc: 'शिकायत नंबर से या अपने डैशबोर्ड से कभी भी स्थिति देखें।' },
-  { icon: 'call-outline', title: 'तुरंत मदद चाहिए?', desc: 'ऊपर 🆘 बटन दबाकर तुरंत पुलिस को कॉल करें, कहीं से भी।' },
+  { icon: 'call-outline', title: 'तुरंत मदद चाहिए?', desc: 'ऊपर SOS बटन दबाकर तुरंत पुलिस को कॉल करें, कहीं से भी।' },
 ];
 
 const GUIDE_SEEN_KEY = 'shaktikop:seenHomeGuide';
@@ -172,7 +172,7 @@ export default function HomeScreen({ navigation }) {
     try {
       const items = await fetchPublicWelfare();
       if (Array.isArray(items) && items.length > 0) {
-        const mapped = (arr) => arr.map((w) => ({ icon: w.icon || '📋', tag: w.tag || 'Scheme', title: w.title, desc: w.description, url: w.url }));
+        const mapped = (arr) => arr.map((w) => ({ icon: w.icon || 'document-text-outline', tag: w.tag || 'Scheme', title: w.title, desc: w.description, url: w.url }));
         const welfareItems = mapped(items.filter((w) => w.section === 'welfare'));
         const supportItems = mapped(items.filter((w) => w.section === 'support'));
         if (welfareItems.length > 0) {
@@ -321,7 +321,7 @@ export default function HomeScreen({ navigation }) {
       ]);
       return;
     }
-    Alert.alert(tt('🆘 SOS भेजें?'), tt('आपकी लाइव लोकेशन और पूरी प्रोफ़ाइल के साथ नज़दीकी थाने और एडमिन को तुरंत सूचना भेजी जाएगी।'), [
+    Alert.alert(tt('SOS भेजें?'), tt('आपकी लाइव लोकेशन और पूरी प्रोफ़ाइल के साथ नज़दीकी थाने और एडमिन को तुरंत सूचना भेजी जाएगी।'), [
       { text: tt('रद्द करें'), style: 'cancel' },
       {
         text: tt('हाँ, SOS भेजें'),
@@ -330,7 +330,7 @@ export default function HomeScreen({ navigation }) {
           setSosBusy(true);
           try {
             const complaintId = await quickSos();
-            Alert.alert(tt('🆘 SOS भेज दिया गया'), tt('आपकी लाइव लोकेशन के साथ नज़दीकी थाने और एडमिन को तुरंत सूचना भेज दी गई है।'));
+            Alert.alert(tt('SOS भेज दिया गया'), tt('आपकी लाइव लोकेशन के साथ नज़दीकी थाने और एडमिन को तुरंत सूचना भेज दी गई है।'));
             navigation.navigate('ComplaintDetail', { id: complaintId });
           } catch (e) {
             Alert.alert(tt('त्रुटि'), e.message || tt('SOS भेजा नहीं जा सका।'));
@@ -526,7 +526,7 @@ export default function HomeScreen({ navigation }) {
               )}
               <View style={{ flex: 1 }}>
                 <Text style={[styles.welcomeText, { fontSize: 15 }]}>
-                  {tt(timeGreeting().text)}, {user.name?.split(' ')[0]} {timeGreeting().emoji}
+                  {tt(timeGreeting().text)}, {user.name?.split(' ')[0]}
                 </Text>
                 {profileIncomplete ? (
                   <TouchableOpacity style={styles.reminderRow} onPress={() => navigation.navigate('CitizenProfile')}>
@@ -556,7 +556,7 @@ export default function HomeScreen({ navigation }) {
                   <StaggerItem key={h.number} index={i}>
                     <View style={styles.helplineCard}>
                       <View style={[styles.helplineIconBox, { backgroundColor: h.color + '1A' }]}>
-                        <Text style={styles.helplineIconEmoji}>{h.icon}</Text>
+                        <Ionicons name={h.icon} size={19} color={h.color} />
                       </View>
                       <View style={styles.helplineTextWrap}>
                         <Text style={[styles.helplineLabel, { fontSize: 12.5 }]} numberOfLines={2}>
@@ -632,7 +632,9 @@ export default function HomeScreen({ navigation }) {
               {filteredSupport.map((s, i) => (
                 <StaggerItem key={s.title} index={i}>
                   <TouchableOpacity style={styles.svcListCard} onPress={() => openSupportService(s)} activeOpacity={0.85}>
-                    <Text style={styles.svcListEmoji}>{s.icon}</Text>
+                    <View style={styles.svcListIconBox}>
+                      <Ionicons name={s.icon} size={19} color={colors.inkNavy} />
+                    </View>
                     <View style={{ flex: 1 }}>
                       <View style={styles.svcTagPillAlt}>
                         <Text style={styles.svcTagTextAlt}>{tt(s.tag)}</Text>
@@ -659,7 +661,9 @@ export default function HomeScreen({ navigation }) {
               {filteredWelfare.map((s, i) => (
                 <StaggerItem key={s.title} index={i}>
                   <TouchableOpacity style={styles.svcListCard} onPress={() => openExternal(s.url)} activeOpacity={0.85}>
-                    <Text style={styles.svcListEmoji}>{s.icon}</Text>
+                    <View style={styles.svcListIconBox}>
+                      <Ionicons name={s.icon} size={19} color={colors.inkNavy} />
+                    </View>
                     <View style={{ flex: 1 }}>
                       <View style={styles.svcTagPillAlt}>
                         <Text style={styles.svcTagTextAlt}>{tt(s.tag)}</Text>
@@ -721,8 +725,14 @@ export default function HomeScreen({ navigation }) {
         )}
       </Animated.ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={quickSOS} activeOpacity={0.85} disabled={sosBusy}>
-        <Text style={styles.fabText}>{sosBusy ? '…' : '🆘'}</Text>
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={quickSOS}
+        activeOpacity={0.85}
+        disabled={sosBusy}
+        accessibilityLabel={tt('आपातकालीन SOS')}
+      >
+        {sosBusy ? <Text style={styles.fabText}>…</Text> : <Ionicons name="warning" size={26} color={colors.white} />}
       </TouchableOpacity>
 
       <Modal visible={showGuide} transparent animationType="fade" onRequestClose={dismissGuide}>

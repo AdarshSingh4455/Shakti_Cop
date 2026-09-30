@@ -505,7 +505,7 @@ export default function ServiceRequestsManagementScreen({ route }) {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 32 }}>{cfg.emoji}</Text>
+            <Ionicons name={cfg.icon} size={32} color={colors.inkLight} />
             <Text style={styles.emptyText}>{tt('इस श्रेणी में कोई अनुरोध नहीं।')}</Text>
           </View>
         }

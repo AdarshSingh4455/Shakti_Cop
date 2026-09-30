@@ -18,7 +18,7 @@ export default function ServiceProvidersManagementScreen() {
   // कभी दोबारा नहीं बनतीं, और service-type/ज़िले के नाम पर tt() लगा ही नहीं था।
   const TYPE_OPTIONS = [
     { label: tt('सभी सेवाओं के लिए'), value: '' },
-    ...Object.values(SERVICE_TYPES).map((s) => ({ label: `${s.emoji} ${tt(s.label)}`, value: s.key })),
+    ...Object.values(SERVICE_TYPES).map((s) => ({ label: tt(s.label), value: s.key })),
   ];
   const DISTRICT_OPTIONS = [{ label: tt('सभी ज़िलों के लिए'), value: '' }, ...DISTRICTS.map((d) => ({ label: tt(d), value: d }))];
   // 🆕 SHO भी अब काउंसलर/प्रशिक्षक ID बना/बदल सकते हैं — अपॉइंटमेंट भी वही शेड्यूल करते हैं
@@ -289,7 +289,12 @@ export default function ServiceProvidersManagementScreen() {
                 {!item.isActive ? ` · ${tt('निष्क्रिय')}` : ''}
               </Text>
               {item.fatherName ? <Text style={styles.rowMeta}>{tt('पिता/पति का नाम')}: {item.fatherName}</Text> : null}
-              {item.mobile ? <Text style={styles.rowMeta}>📞 {item.mobile}{item.email ? ` · ✉️ ${item.email}` : ''}</Text> : null}
+              {item.mobile ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="call-outline" size={12} color={colors.inkLight} />
+                  <Text style={styles.rowMeta}>{item.mobile}{item.email ? ` · ${item.email}` : ''}</Text>
+                </View>
+              ) : null}
               {item.createdByName ? (
                 <Text style={styles.rowMetaFaint}>
                   {tt('बनाई')}: {item.createdByName} ({item.createdByRole})

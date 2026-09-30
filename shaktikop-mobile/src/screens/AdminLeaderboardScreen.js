@@ -92,11 +92,20 @@ export default function AdminLeaderboardScreen({ route }) {
                   <Text style={styles.stationChipText}>{tt(presetStation)}</Text>
                 </View>
               ) : user?.rangeDistricts && user.rangeDistricts.length > 0 ? (
-                <Text style={styles.scopeNote}>📍 {tt('आपका Range')}: {user.rangeDistricts.map((d) => tt(d)).join(', ')}</Text>
+                <View style={styles.scopeNoteRow}>
+                  <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+                  <Text style={styles.scopeNote}>{tt('आपका Range')}: {user.rangeDistricts.map((d) => tt(d)).join(', ')}</Text>
+                </View>
               ) : user?.circleStations && user.circleStations.length > 0 ? (
-                <Text style={styles.scopeNote}>📍 {tt('आपका सर्किल')}: {user.circleStations.map((s) => tt(s)).join(', ')}</Text>
+                <View style={styles.scopeNoteRow}>
+                  <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+                  <Text style={styles.scopeNote}>{tt('आपका सर्किल')}: {user.circleStations.map((s) => tt(s)).join(', ')}</Text>
+                </View>
               ) : user?.district && (user?.adminRole === 'district_admin' || user?.adminRole === 'monitor') ? (
-                <Text style={styles.scopeNote}>📍 {tt('आपका ज़िला')}: {tt(user.district)}</Text>
+                <View style={styles.scopeNoteRow}>
+                  <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+                  <Text style={styles.scopeNote}>{tt('आपका ज़िला')}: {tt(user.district)}</Text>
+                </View>
               ) : null}
               <Text style={styles.filterSectionLabel}>{tt('क्रम')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
@@ -154,7 +163,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.sand },
   list: { padding: 16 },
   h2: { fontSize: 18, fontWeight: '800', color: colors.inkNavy, marginBottom: 6 },
-  scopeNote: { fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700', marginBottom: 10 },
+  scopeNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 10 },
+  scopeNote: { flex: 1, fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700' },
   stationChip: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -41,7 +41,7 @@ async function sendBroadcast(req, res) {
   );
 
   let recipientCount = 0;
-  const broadcastTitle = `📢 ${title}`;
+  const broadcastTitle = title;
 
   // 🆕 Notification Batching — पहले हर प्राप्तकर्ता के लिए अलग INSERT query चलती थी
   // (नागरिकों को broadcast करने पर हज़ारों अलग queries हो सकती थीं)। अब सभी की

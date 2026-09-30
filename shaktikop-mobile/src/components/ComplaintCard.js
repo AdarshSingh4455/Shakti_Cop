@@ -34,9 +34,12 @@ export default function ComplaintCard({ complaint, onPress }) {
         <TimelineStepper status={complaint.status} size="mini" />
       </View>
       <View style={styles.metaRow}>
-        <Text style={styles.metaLocation} numberOfLines={1} ellipsizeMode="tail">
-          📍 {complaint.location || t('लाइव लोकेशन')}
-        </Text>
+        <View style={styles.metaLocationRow}>
+          <Ionicons name="location-outline" size={12} color={colors.inkLight} />
+          <Text style={styles.metaLocation} numberOfLines={1} ellipsizeMode="tail">
+            {complaint.location || t('लाइव लोकेशन')}
+          </Text>
+        </View>
         <Text style={styles.metaDate}>{dateLabel}</Text>
       </View>
       <LiveLocationStatus complaint={complaint} compact />
@@ -64,6 +67,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: 12.5, color: colors.inkGrey, marginTop: 8, lineHeight: 18 },
   stepperWrap: { marginTop: 10 },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 11, gap: 8 },
+  metaLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 },
   metaLocation: { fontSize: 11.5, color: colors.inkLight, flex: 1 },
   metaDate: { fontSize: 11.5, color: colors.inkLight, flexShrink: 0 },
 });

@@ -122,9 +122,7 @@ export default function MyStationOfficersScreen({ navigation }) {
                 <Text style={styles.avatarText}>{(item.name || '?')[0]}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.name}>
-                  {item.name} {item.rank === 'SHO' ? '👑' : ''}
-                </Text>
+                <Text style={styles.name}>{item.name}</Text>
                 <Text style={styles.subtext}>
                   {item.badgeId} · {item.rank} {!item.isActive ? `· ${tt('निष्क्रिय')}` : ''}
                 </Text>

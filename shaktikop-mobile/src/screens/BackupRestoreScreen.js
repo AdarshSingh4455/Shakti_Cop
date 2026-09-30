@@ -102,7 +102,7 @@ export default function BackupRestoreScreen() {
       // यानी ठीक उस वक़्त जब सुधारने का कोई मौक़ा नहीं बचता।
       if (backup?.meta?.truncated?.length > 0) {
         Alert.alert(
-          tt('⚠️ बैकअप अधूरा है'),
+          tt('बैकअप अधूरा है'),
           tt(`इन तालिकाओं में 20,000 से ज़्यादा पंक्तियां हैं, इसलिए सिर्फ़ पहली 20,000 ही ली गईं: ${backup.meta.truncated.join(', ')}\n\nपूरा बैकअप लेने के लिए तकनीकी टीम से सीधे database dump लेने को कहें।`)
         );
       }
@@ -314,7 +314,7 @@ export default function BackupRestoreScreen() {
 
       <View style={styles.card}>
         <SecondaryButton
-          title={file ? `📄 ${file.name}` : tt('बैकअप फ़ाइल चुनें')}
+          title={file ? file.name : tt('बैकअप फ़ाइल चुनें')}
           onPress={pickFile}
         />
 

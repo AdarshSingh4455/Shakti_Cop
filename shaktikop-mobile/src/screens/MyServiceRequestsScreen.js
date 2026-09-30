@@ -136,7 +136,7 @@ export default function MyServiceRequestsScreen({ navigation, route }) {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 34 }}>{cfg.emoji}</Text>
+            <Ionicons name={cfg.icon} size={34} color={colors.inkLight} />
             <Text style={styles.emptyText}>
               {tt('अभी कोई अनुरोध नहीं — ऊपर से नया अनुरोध भेजें।')}
             </Text>

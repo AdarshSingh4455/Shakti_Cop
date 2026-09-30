@@ -8,7 +8,7 @@ export const SERVICE_TYPES = {
   counselling: {
     key: 'counselling',
     label: 'काउंसलिंग सहायता',
-    emoji: '💬',
+    icon: 'chatbubble-ellipses-outline',
     intro: 'लाइसेंस-प्राप्त विशेषज्ञ से मुफ़्त व गोपनीय काउंसलिंग — अनुरोध भेजें',
     submitLabel: 'काउंसलिंग सत्र बुक करें',
     tagLabel: 'गोपनीय',
@@ -32,7 +32,7 @@ export const SERVICE_TYPES = {
   legal_aid: {
     key: 'legal_aid',
     label: 'कानूनी सहायता',
-    emoji: '⚖️',
+    icon: 'hammer-outline',
     intro: 'घरेलू हिंसा व सुरक्षा नियमों पर मुफ़्त वकील परामर्श — अनुरोध भेजें',
     submitLabel: 'कानूनी सहायता का अनुरोध भेजें',
     tagLabel: 'निःशुल्क सहायता',
@@ -56,7 +56,7 @@ export const SERVICE_TYPES = {
   self_defence: {
     key: 'self_defence',
     label: 'आत्मरक्षा प्रशिक्षण',
-    emoji: '🥋',
+    icon: 'fitness-outline',
     intro: 'मुफ़्त आत्मरक्षा कार्यशाला व प्रमाणीकरण — प्रशिक्षण हेतु पंजीकरण करें',
     submitLabel: 'प्रशिक्षण हेतु अनुरोध भेजें',
     tagLabel: 'कार्यशाला',
@@ -69,7 +69,7 @@ export const SERVICE_TYPES = {
   empowerment: {
     key: 'empowerment',
     label: 'जन शिक्षण संस्थान',
-    emoji: '🏫',
+    icon: 'school-outline',
     intro: 'महिलाओं हेतु मुफ़्त कौशल प्रशिक्षण व प्रमाणपत्र — पंजीकरण करें',
     submitLabel: 'कार्यक्रम हेतु पंजीकरण करें',
     tagLabel: 'व्यावसायिक प्रशिक्षण',

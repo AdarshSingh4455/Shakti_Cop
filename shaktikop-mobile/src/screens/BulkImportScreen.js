@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { tt } from '../context/LocaleContext';
 import { View, Text, ScrollView, StyleSheet, TextInput, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../theme/colors';
 import { PrimaryButton } from '../components/Buttons';
 import { useApp } from '../context/AppContext';
@@ -59,10 +60,16 @@ export default function BulkImportScreen() {
 
       {result && (
         <View style={styles.resultBox}>
-          <Text style={styles.resultTitle}>✅ {result.success.length} सफल</Text>
+          <View style={styles.resultTitleRow}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.sage} />
+            <Text style={styles.resultTitle}>{result.success.length} सफल</Text>
+          </View>
           {result.failed.length > 0 && (
             <>
-              <Text style={styles.resultTitleFail}>❌ {result.failed.length} असफल</Text>
+              <View style={[styles.resultTitleRow, { marginTop: 8 }]}>
+                <Ionicons name="close-circle" size={16} color={colors.alert} />
+                <Text style={styles.resultTitleFail}>{result.failed.length} असफल</Text>
+              </View>
               {result.failed.map((f, i) => (
                 <Text key={i} style={styles.failLine}>
                   {f.row.name || '—'}: {f.existingOfficer
@@ -86,7 +93,8 @@ const styles = StyleSheet.create({
   example: { fontSize: 11, color: colors.inkLight, backgroundColor: colors.white, padding: 10, borderRadius: radius.sm, marginBottom: 14, lineHeight: 16 },
   textarea: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.sm, padding: 12, fontSize: 13, minHeight: 150, textAlignVertical: 'top' },
   resultBox: { backgroundColor: colors.white, borderRadius: radius.md, padding: 14, marginTop: 16 },
+  resultTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   resultTitle: { fontSize: 13.5, fontWeight: '700', color: colors.sage },
-  resultTitleFail: { fontSize: 13.5, fontWeight: '700', color: colors.alert, marginTop: 8 },
+  resultTitleFail: { fontSize: 13.5, fontWeight: '700', color: colors.alert },
   failLine: { fontSize: 11.5, color: colors.inkGrey, marginTop: 4 },
 });

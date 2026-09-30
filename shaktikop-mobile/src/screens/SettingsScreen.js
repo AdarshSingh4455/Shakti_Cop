@@ -145,7 +145,7 @@ export default function SettingsScreen({ navigation }) {
       {/* परिचय पट्टी */}
       <View style={styles.headCard}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>🙏</Text>
+          <Ionicons name="person-circle" size={32} color={colors.shaktiMaroon} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.headName}>{user?.name || '—'}</Text>

@@ -10,7 +10,7 @@ export const CHANGELOG = [
       'शिकायत फॉर्म का draft अब सभी डिवाइस पर sync होता है — एक फोन पर लिखा अधूरा फॉर्म दूसरे फोन पर भी दिखेगा',
       'असली UP Police आधिकारिक चिह्न (logo) पूरे ऐप में जोड़ा गया',
       'नक्शे अब मुफ़्त OpenStreetMap से (कोई Google बिल नहीं)',
-      'सभी dashboards में notification bell 🔔 जोड़ी गई',
+      'सभी dashboards में notification bell जोड़ी गई',
       'Admin के लिए पेशेवर केस प्रबंधन — Priority, Checklist, QR पावती सत्यापन',
       'पूरा police rank hierarchy: SI, SHO, DSP, SP, SSP, Super Admin',
     ],

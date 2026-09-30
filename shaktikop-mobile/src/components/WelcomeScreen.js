@@ -50,7 +50,7 @@ export default function WelcomeScreen() {
       <Animated.View style={[styles.card, { opacity: fade, transform: [{ scale }] }]}>
         <PoliceLogoIcon size={40} />
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>🙏</Text>
+          <Ionicons name="person-circle" size={32} color={colors.shaktiMaroon} />
         </View>
         <Text style={styles.greeting}>{greeting()},</Text>
         <Text style={styles.name}>{user?.name || 'उपयोगकर्ता'}</Text>

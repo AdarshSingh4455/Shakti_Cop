@@ -122,7 +122,7 @@ export default function AtrScreen() {
           <td style="white-space:nowrap">${esc(formatDateTimeFull(e.at))}${gap ? `<br/><span style="color:#999;font-size:9px">(${esc(gap)})</span>` : ''}</td>
           <td><b>${esc(e.title)}</b><br/><span style="color:#888;font-size:9px">${esc(st.label)}</span></td>
           <td>${esc(e.actor)}<br/><span style="color:#888;font-size:9px">${esc(e.actorRole || '')}</span></td>
-          <td>${esc(e.detail || '—')}${e.hasAttachment ? '<br/>📎 प्रमाण' : ''}${e.hasVoiceNote ? '<br/>🎤 आवाज़' : ''}</td>
+          <td>${esc(e.detail || '—')}${e.hasAttachment ? '<br/>प्रमाण संलग्न' : ''}${e.hasVoiceNote ? '<br/>आवाज़ संलग्न' : ''}</td>
         </tr>`;
       })
       .join('');
@@ -338,14 +338,25 @@ export default function AtrScreen() {
                 {item.officerName ? ` · ${item.officerName}` : ` · ${tt('अनियुक्त')}`}
               </Text>
               <View style={styles.cardFoot}>
-                <Text style={[styles.time, breached && { color: colors.alert, fontWeight: '800' }]}>
-                  ⏱ {hrs(item.hours)}
-                </Text>
-                <Text style={styles.time}>
-                  ☑ {item.checklistDone}/{item.checklistTotal}
-                </Text>
+                <View style={styles.cardFootItem}>
+                  <Ionicons name="time-outline" size={12} color={breached ? colors.alert : colors.inkLight} />
+                  <Text style={[styles.time, breached && { color: colors.alert, fontWeight: '800' }]}>
+                    {hrs(item.hours)}
+                  </Text>
+                </View>
+                <View style={styles.cardFootItem}>
+                  <Ionicons name="checkmark-done-outline" size={12} color={colors.inkLight} />
+                  <Text style={styles.time}>
+                    {item.checklistDone}/{item.checklistTotal}
+                  </Text>
+                </View>
                 {item.neverOpened && <Text style={styles.warn}>{tt('कभी नहीं खोली')}</Text>}
-                {item.feedbackRating ? <Text style={styles.time}>★ {item.feedbackRating}</Text> : null}
+                {item.feedbackRating ? (
+                  <View style={styles.cardFootItem}>
+                    <Ionicons name="star" size={12} color={colors.marigold} />
+                    <Text style={styles.time}>{item.feedbackRating}</Text>
+                  </View>
+                ) : null}
               </View>
             </TouchableOpacity>
           );
@@ -495,9 +506,9 @@ export default function AtrScreen() {
                             {e.detail ? <Text style={styles.evDetail}>{e.detail}</Text> : null}
                             {(e.hasAttachment || e.hasVoiceNote) && (
                               <Text style={styles.evAttach}>
-                                {e.hasAttachment ? tt('📎 प्रमाण संलग्न') : ''}
+                                {e.hasAttachment ? tt('प्रमाण संलग्न') : ''}
                                 {e.hasAttachment && e.hasVoiceNote ? '  ' : ''}
-                                {e.hasVoiceNote ? tt('🎤 आवाज़ टिप्पणी संलग्न') : ''}
+                                {e.hasVoiceNote ? tt('आवाज़ टिप्पणी संलग्न') : ''}
                               </Text>
                             )}
                           </View>
@@ -584,6 +595,7 @@ const styles = StyleSheet.create({
   cat: { fontSize: 13, fontWeight: '700', color: colors.inkNavy, marginTop: 6 },
   meta: { fontSize: 11, color: colors.inkLight, marginTop: 2 },
   cardFoot: { flexDirection: 'row', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' },
+  cardFootItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   time: { fontSize: 11, color: colors.inkGrey, fontWeight: '600' },
   warn: { fontSize: 10.5, color: colors.alert, fontWeight: '800' },
   empty: { alignItems: 'center', paddingVertical: 50 },

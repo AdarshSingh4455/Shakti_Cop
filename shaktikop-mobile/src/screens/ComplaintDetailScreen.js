@@ -390,7 +390,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
   // 🆕 सिर्फ़ Super Admin — शिकायत हटाना (अब soft-delete — "हटाई गई शिकायतें" सूची से वापस लाई जा सकती है)
   const handleDelete = () => {
     Alert.alert(
-      tt('⚠️ शिकायत हटाएं?'),
+      tt('शिकायत हटाएं?'),
       tt('यह शिकायत तुरंत सभी सूचियों/खोज से हट जाएगी। असली डेटा सुरक्षित रहता है — Super Admin "हटाई गई शिकायतें" मेनू से इसे बाद में वापस ला सकते हैं।'),
       [
         { text: tt('रद्द करें'), style: 'cancel' },
@@ -540,7 +540,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
       // कितने तक सूचना पहुँची — यह बताना ज़रूरी है, वरना नागरिक को पता ही नहीं
       // चलता कि उसका SOS किसी तक पहुँचा या नहीं
       const reachLine = res?.alerted
-        ? `\n\n✅ ${tt('सूचना पहुँची')}: ${res.alerted.officers} ${tt('अधिकारी')} · ${res.alerted.admins} ${tt('एडमिन')}`
+        ? `\n\n${tt('सूचना पहुँची')}: ${res.alerted.officers} ${tt('अधिकारी')} · ${res.alerted.admins} ${tt('एडमिन')}`
         : '';
       // SOS के बाद ट्रैकिंग अपने-आप चालू — आपात स्थिति में नागरिक से
       // अलग से switch दबाने की उम्मीद करना ठीक नहीं
@@ -554,7 +554,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
       const trackingActuallyOn = bg.ok || !!liveIntervalRef.current;
       setLiveSharing(trackingActuallyOn);
 
-      setSuccessMsg(tt('🆘 SOS भेज दिया गया'));
+      setSuccessMsg(tt('SOS भेज दिया गया'));
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -562,7 +562,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
           ? tt('आपकी लाइव लोकेशन के साथ तुरंत सूचना भेज दी गई है — अब लगातार आपकी लोकेशन अपडेट होती रहेगी।')
           : tt('सूचना भेज दी गई है — पर लोकेशन-अनुमति न होने के कारण लगातार लाइव लोकेशन ट्रैकिंग शुरू नहीं हो सकी। कृपया फ़ोन सेटिंग्स से लोकेशन अनुमति दें।');
         Alert.alert(
-          tt('🆘 SOS भेज दिया गया'),
+          tt('SOS भेज दिया गया'),
           `${trackingLine}${reachLine}${stationLine}`
         );
       }, 700);
@@ -640,7 +640,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
     setVerifyBusy(true);
     try {
       await verifyResolution(complaint.id);
-      Alert.alert(tt('✔ सत्यापित किया गया'), tt('निस्तारण की पुष्टि दर्ज कर दी गई है।'));
+      Alert.alert(tt('सत्यापित किया गया'), tt('निस्तारण की पुष्टि दर्ज कर दी गई है।'));
     } catch (e) {
       Alert.alert(tt('त्रुटि'), e.message);
     }
@@ -768,7 +768,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
         }
       }
       await requestBackup(complaint.id, lat, lon, `शिकायत ${complaint.id} पर तुरंत सहायता चाहिए`);
-      Alert.alert(tt('🆘 Backup अनुरोध भेजा गया'), tt('सभी सक्रिय एडमिन को सूचना भेज दी गई है।'));
+      Alert.alert(tt('Backup अनुरोध भेजा गया'), tt('सभी सक्रिय एडमिन को सूचना भेज दी गई है।'));
     } catch (e) {
       Alert.alert(tt('त्रुटि'), e.message);
     }
@@ -883,8 +883,8 @@ export default function ComplaintDetailScreen({ route, navigation }) {
           {complaint.accusedMobile ? <InfoItem label={tt('आरोपी का मोबाइल')} value={complaint.accusedMobile} /> : null}
           {complaint.extraDetails?.fromLocation ? <InfoItem label={tt('कहाँ से')} value={complaint.extraDetails.fromLocation} /> : null}
           {complaint.extraDetails?.toLocation ? <InfoItem label={tt('कहाँ तक')} value={complaint.extraDetails.toLocation} /> : null}
-          {complaint.sosTriggered ? <InfoItem label={tt('SOS स्थिति')} value={`🆘 सक्रिय (${formatDateTime(complaint.sosTriggeredAt)})`} /> : null}
-          {complaint.safeArrivalConfirmed ? <InfoItem label={tt('सुरक्षित पहुँच')} value={`✔ पुष्टि हुई (${formatDateTime(complaint.safeArrivalConfirmedAt)})`} /> : null}
+          {complaint.sosTriggered ? <InfoItem label={tt('SOS स्थिति')} value={`सक्रिय (${formatDateTime(complaint.sosTriggeredAt)})`} /> : null}
+          {complaint.safeArrivalConfirmed ? <InfoItem label={tt('सुरक्षित पहुँच')} value={`पुष्टि हुई (${formatDateTime(complaint.safeArrivalConfirmedAt)})`} /> : null}
         </View>
 
         {/* 🆕 दोहराए-आरोपी की पहचान — सिर्फ़ officer/admin को दिखता है, सिर्फ़ तभी जब
@@ -895,7 +895,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
             <View style={styles.accusedWarningHeader}>
               <Ionicons name="warning" size={18} color={colors.alert} />
               <Text style={styles.accusedWarningTitle}>
-                {tt(`⚠️ इसी आरोपी के मोबाइल-नंबर से ${accusedHistory.priorComplaintsCount} और शिकायत(ें) मिलीं`)}
+                {tt(`इसी आरोपी के मोबाइल-नंबर से ${accusedHistory.priorComplaintsCount} और शिकायत(ें) मिलीं`)}
               </Text>
             </View>
             <Text style={styles.accusedWarningHint}>
@@ -937,7 +937,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
         {complaint.voiceNoteUrl ? (
           <TouchableOpacity style={styles.voiceNotePlayBtn} onPress={playVoiceNote}>
             <Ionicons name={soundPlaying ? 'pause-circle' : 'play-circle'} size={22} color={colors.shaktiMaroon} />
-            <Text style={styles.voiceNote}>{soundPlaying ? 'रोकें' : '🎤 आवाज़ रिकॉर्डिंग सुनें'}</Text>
+            <Text style={styles.voiceNote}>{soundPlaying ? 'रोकें' : 'आवाज़ रिकॉर्डिंग सुनें'}</Text>
           </TouchableOpacity>
         ) : null}
 
@@ -983,7 +983,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
                 </Text>
                 {complaint.liveAccuracy != null ? (
                   <Text style={styles.gpsUpdated}>
-                    📍 {tt('GPS सटीकता')}: ±{Math.round(complaint.liveAccuracy)} {tt('मीटर')}
+                    {tt('GPS सटीकता')}: ±{Math.round(complaint.liveAccuracy)} {tt('मीटर')}
                     {complaint.liveAccuracy > 100 ? ` (${tt('कम सटीक — खुले आसमान में जाने पर बेहतर होगी')})` : ''}
                   </Text>
                 ) : null}
@@ -1112,11 +1112,11 @@ export default function ComplaintDetailScreen({ route, navigation }) {
             accessibilityHint={tt('दबाते ही आपकी लाइव लोकेशन पुलिस व आपातकालीन संपर्कों को भेजी जाएगी')}
           >
             <Ionicons name="alert-circle" size={22} color={colors.white} />
-            <Text style={styles.sosBtnText}>{sosBusy ? 'भेजा जा रहा है…' : '🆘 SOS — तुरंत मदद चाहिए'}</Text>
+            <Text style={styles.sosBtnText}>{sosBusy ? 'भेजा जा रहा है…' : 'SOS — तुरंत मदद चाहिए'}</Text>
           </TouchableOpacity>
           <Text style={styles.hint}>{tt('दबाने पर आपकी लाइव लोकेशन के साथ एडमिन को तुरंत अलर्ट जाएगा।')}</Text>
           <PrimaryButton
-            title={arrivalBusy ? tt('सुरक्षित हो रहा है…') : '✔ मैं सुरक्षित अपनी जगह पहुँच गया'}
+            title={arrivalBusy ? tt('सुरक्षित हो रहा है…') : 'मैं सुरक्षित अपनी जगह पहुँच गया'}
             onPress={doSafeArrival}
             style={{ marginTop: 14, backgroundColor: colors.sage }}
            loading={arrivalBusy} />
@@ -1248,7 +1248,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
           <Text style={styles.sectionTitle}>{tt('फील्ड विज़िट GPS चेक-इन')}</Text>
           {role === 'officer' && !['निस्तारित', REJECTED_STATUS].includes(complaint.status) && (
             <SecondaryButton
-              title={checkinBusy ? tt('चेक-इन हो रहा है…') : '📍 अभी घटनास्थल पर चेक-इन करें'}
+              title={checkinBusy ? tt('चेक-इन हो रहा है…') : 'अभी घटनास्थल पर चेक-इन करें'}
               onPress={doFieldCheckin}
               style={{ marginBottom: 10 }}
             />
@@ -1258,7 +1258,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
           ) : (
             fieldVisits.map((v) => (
               <View key={v.id} style={styles.privateNoteRow}>
-                <Text style={styles.privateNoteText}>📍 {v.latitude.toFixed(4)}, {v.longitude.toFixed(4)}</Text>
+                <Text style={styles.privateNoteText}>{v.latitude.toFixed(4)}, {v.longitude.toFixed(4)}</Text>
                 <Text style={styles.hint}>{v.officerName} · {formatDateTime(v.createdAt)}</Text>
               </View>
             ))
@@ -1269,7 +1269,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
       {role === 'officer' && (
         <TouchableOpacity style={styles.backupBtn} onPress={doBackupRequest} disabled={backupBusy}>
           <Ionicons name="alert-circle" size={18} color={colors.white} />
-          <Text style={styles.backupBtnText}>{backupBusy ? 'भेजा जा रहा है…' : '🆘 तुरंत Backup माँगें'}</Text>
+          <Text style={styles.backupBtnText}>{backupBusy ? 'भेजा जा रहा है…' : 'तुरंत Backup माँगें'}</Text>
         </TouchableOpacity>
       )}
 
@@ -1292,7 +1292,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
                 <Text style={[styles.tlStatus, done && { color: colors.inkNavy }]}>{s}</Text>
                 {entry && <Text style={styles.tlDate}>{formatDateTime(entry.created_at)} {entry.actor_name ? `· ${entry.actor_name} द्वारा` : ''}</Text>}
                 {s === 'अधिकारी नियुक्त' && complaint.officer && (
-                  <Text style={styles.tlOfficer}>👮 नियुक्त अधिकारी: {complaint.officer}</Text>
+                  <Text style={styles.tlOfficer}>नियुक्त अधिकारी: {complaint.officer}</Text>
                 )}
                 {entry && entry.note ? <Text style={styles.tlNote}>{entry.note}</Text> : null}
               </View>
@@ -1406,7 +1406,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
             maxLength={1000}
           />
           <SecondaryButton
-            title={transferBusy ? tt('स्थानांतरित हो रहा है…') : '↔ दूसरे अधिकारी को स्थानांतरित करें'}
+            title={transferBusy ? tt('स्थानांतरित हो रहा है…') : 'दूसरे अधिकारी को स्थानांतरित करें'}
             onPress={doTransfer}
             style={{ marginTop: 10 }}
           />
@@ -1424,7 +1424,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
             onChangeText={setAlertMsg}
             maxLength={500}
           />
-          <SecondaryButton title={alertBusy ? tt('भेजा जा रहा है…') : '🔔 अलर्ट भेजें'} onPress={doAlert} style={{ marginTop: 10 }} />
+          <SecondaryButton title={alertBusy ? tt('भेजा जा रहा है…') : 'अलर्ट भेजें'} onPress={doAlert} style={{ marginTop: 10 }} />
         </View>
       )}
 
@@ -1468,7 +1468,7 @@ export default function ComplaintDetailScreen({ route, navigation }) {
       )}
 
       {role === 'citizen' && (
-        <SecondaryButton title={tt('👪 परिवार के साथ स्थिति शेयर करें')} onPress={doShareWithFamily} style={{ marginBottom: 10 }} />
+        <SecondaryButton title={tt('परिवार के साथ स्थिति शेयर करें')} onPress={doShareWithFamily} style={{ marginBottom: 10 }} />
       )}
 
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>

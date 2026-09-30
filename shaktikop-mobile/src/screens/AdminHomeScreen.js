@@ -208,11 +208,20 @@ export default function AdminHomeScreen({ navigation }) {
       {/* 🆕 दायरा-संकेत — सभी roles (DSP/ASP/SSP/IG/DIG/district_admin) को साफ़ दिखे
           कि वे किस दायरे का डेटा देख रहे हैं (पहले यह कहीं भी नहीं दिखता था) */}
       {user?.rangeDistricts && user.rangeDistricts.length > 0 ? (
-        <Text style={styles.scopeNote}>📍 {tt('आपका Range')}: {user.rangeDistricts.map((d) => tt(d)).join(', ')}</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>{tt('आपका Range')}: {user.rangeDistricts.map((d) => tt(d)).join(', ')}</Text>
+        </View>
       ) : user?.circleStations && user.circleStations.length > 0 ? (
-        <Text style={styles.scopeNote}>📍 {tt('आपका सर्किल')}: {user.circleStations.map((s) => tt(s)).join(', ')}</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>{tt('आपका सर्किल')}: {user.circleStations.map((s) => tt(s)).join(', ')}</Text>
+        </View>
       ) : user?.district && (user?.adminRole === 'district_admin' || user?.adminRole === 'monitor') ? (
-        <Text style={styles.scopeNote}>📍 {tt('आपका ज़िला')}: {tt(user.district)}</Text>
+        <View style={styles.scopeNoteRow}>
+          <Ionicons name="location-outline" size={13} color={colors.inkGrey} />
+          <Text style={styles.scopeNote}>{tt('आपका ज़िला')}: {tt(user.district)}</Text>
+        </View>
       ) : null}
 
       <TouchableOpacity
@@ -326,7 +335,8 @@ const styles = StyleSheet.create({
   liveText: { fontSize: 11, fontWeight: '600', color: colors.inkGrey },
   liveRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   liveRefreshBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
-  scopeNote: { fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700', marginBottom: 10 },
+  scopeNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 10 },
+  scopeNote: { flex: 1, fontSize: 11.5, color: colors.shaktiMaroon, fontWeight: '700' },
   totalCard: {
     backgroundColor: colors.inkNavy,
     borderRadius: radius.lg,

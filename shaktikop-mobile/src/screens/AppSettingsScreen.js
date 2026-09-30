@@ -7,7 +7,7 @@ import { PrimaryButton } from '../components/Buttons';
 import { useApp } from '../context/AppContext';
 
 const FLAG_LABELS = {
-  voiceToText: 'आवाज़-से-टेक्स्ट (🎤)',
+  voiceToText: 'आवाज़-से-टेक्स्ट',
   qrScanner: 'QR स्कैनर',
   audioRecording: 'आवाज़ रिकॉर्डिंग',
   liveLocationSharing: 'लाइव लोकेशन शेयरिंग',

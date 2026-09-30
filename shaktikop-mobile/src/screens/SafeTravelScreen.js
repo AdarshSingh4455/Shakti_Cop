@@ -95,7 +95,10 @@ export default function SafeTravelScreen({ navigation }) {
                 <Text style={styles.meta}>वाहन: {item.extraDetails?.vehicleNumber || '—'}</Text>
                 <Text style={styles.meta}>{item.extraDetails?.fromLocation || '—'} → {item.extraDetails?.toLocation || '—'}</Text>
                 {item.latitude ? (
-                  <Text style={styles.meta}>📍 {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</Text>
+                  <View style={styles.coordRow}>
+                    <Ionicons name="location-outline" size={12} color={colors.inkLight} />
+                    <Text style={styles.meta}>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</Text>
+                  </View>
                 ) : null}
                 <LiveLocationStatus complaint={item} />
                 <Text style={styles.time}>{formatDateTime(item.createdAt)}</Text>
@@ -141,6 +144,7 @@ const styles = StyleSheet.create({
   sosBadgeText: { fontSize: 10, color: colors.white, fontWeight: '700' },
   name: { fontSize: 15, fontWeight: '700', color: colors.inkNavy, marginTop: 6 },
   meta: { fontSize: 12, color: colors.inkGrey, marginTop: 3 },
+  coordRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
   time: { fontSize: 10.5, color: colors.inkLight, marginTop: 6 },
   emptyBox: { alignItems: 'center', marginTop: 40, paddingHorizontal: 30 },
   emptyText: { textAlign: 'center', color: colors.inkLight, marginTop: 10, fontSize: 13 },

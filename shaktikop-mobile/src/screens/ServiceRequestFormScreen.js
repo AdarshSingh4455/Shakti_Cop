@@ -93,7 +93,7 @@ export default function ServiceRequestFormScreen({ navigation, route }) {
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: 50 }}>
         <View style={styles.headCard}>
-          <Text style={styles.headEmoji}>{cfg.emoji}</Text>
+          <Ionicons name={cfg.icon} size={24} color={colors.shaktiMaroon} />
           <View style={{ flex: 1 }}>
             <Text style={styles.headTitle}>{tt(cfg.label)}</Text>
             <Text style={styles.headSub}>{tt(cfg.intro)}</Text>

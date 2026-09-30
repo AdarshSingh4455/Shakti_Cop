@@ -76,7 +76,7 @@ async function runEscalationCheck() {
 
     for (const complaint of result.rows) {
       const admins = { rows: await adminsForDistrict(complaint.district) };
-      const title = '⏰ रात्रि Escalation — बिना कार्यवाही शिकायत';
+      const title = 'रात्रि Escalation — बिना कार्यवाही शिकायत';
       const body = `शिकायत ${complaint.id} (${complaint.category}) ${hours} घंटे से लंबित है, अभी तक कार्यवाही नहीं हुई।`;
       for (const a of admins.rows) {
         if (a.push_token) sendPushNotification(a.push_token, title, body, { complaintId: complaint.id, escalation: true });
@@ -141,7 +141,7 @@ async function runSafeTravelCheckinSafetyNet() {
     if (result.rows.length === 0) return { skipped: false, checkinEscalatedCount: 0 };
 
     for (const c of result.rows) {
-      const title = '⏰ सुरक्षित यात्रा — सुरक्षा-जांच बाकी है';
+      const title = 'सुरक्षित यात्रा — सुरक्षा-जांच बाकी है';
       // 🐛 बग फ़िक्स: victim_name डेटाबेस में encrypted है — यहाँ इसे बिना decrypt
       // किए सीधे संदेश में डाला जा रहा था। नतीजा: अधिकारी को सुरक्षित-यात्रा वाली
       // escalation सूचना में पीड़िता के नाम की जगह encrypted कचरा दिखता (जैसे

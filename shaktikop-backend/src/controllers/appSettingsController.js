@@ -13,7 +13,7 @@ const DEFAULTS = {
   default_sla_hours: { hours: 48 },
   theme_color: { primary: '#8E2A46' },
   notification_templates: {
-    sosAlertTitle: '🆘 SOS अलर्ट — तुरंत कार्यवाही चाहिए',
+    sosAlertTitle: 'SOS अलर्ट — तुरंत कार्यवाही चाहिए',
     complaintAssignedBody: 'आपको एक नई शिकायत सौंपी गई है — कृपया जल्द जांच करें।',
     complaintResolvedBody: 'आपकी शिकायत निस्तारित कर दी गई है। कृपया अपना अनुभव साझा करें।',
   },

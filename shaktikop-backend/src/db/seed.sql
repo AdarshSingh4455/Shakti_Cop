@@ -87,16 +87,19 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM welfare_items LIMIT 1) THEN
 
+    -- ⚠️ icon_emoji में अब Ionicons नाम रखे जाते हैं (emoji नहीं) — मोबाइल ऐप अब
+    -- इसी कॉलम को <Ionicons name={icon}/> में सीधे इस्तेमाल करता है। कॉलम का नाम
+    -- legacy है (schema बदलना दायरे से बाहर), पर मान अब हमेशा एक Ionicons नाम होगा।
     INSERT INTO welfare_items (section, icon_emoji, tag, title, description, url, display_order) VALUES
-      ('welfare', '👶', 'Financial Aid', 'कन्या सुमंगला योजना', 'बेटी की शिक्षा व स्वास्थ्य हेतु सीधा वित्तीय लाभ।', 'https://mksy.up.gov.in', 1),
-      ('welfare', '💍', 'Marriage Grant', 'शादी अनुदान योजना', 'ग़रीब परिवारों की बेटियों के विवाह हेतु आर्थिक सहायता।', 'https://shadianudan.upsdc.gov.in', 2),
-      ('welfare', '👵', 'Widow Pension', 'विधवा पेंशन योजना', 'निराश्रित विधवा महिलाओं हेतु सामाजिक सुरक्षा व पेंशन।', 'https://sspy-up.gov.in', 3),
-      ('welfare', '🏅', 'Financial Help', 'रानी लक्ष्मीबाई महिला एवं बाल सम्मान कोष', 'संकटग्रस्त महिलाओं व बच्चों हेतु आर्थिक सहायता।', 'https://msk.upsdc.gov.in', 4),
-      ('welfare', '🎓', 'Education Aid', 'UP छात्रवृत्ति योजना', 'सभी वर्गों के छात्रों हेतु प्री व पोस्ट मैट्रिक छात्रवृत्ति।', 'https://scholarship.up.gov.in', 5),
-      ('support', '💬', 'Confidential', 'काउंसलिंग सहायता', 'लाइसेंस-प्राप्त मनोवैज्ञानिक विशेषज्ञों से मुफ़्त काउंसलिंग।', 'https://msk.upsdc.gov.in', 1),
-      ('support', '⚖️', 'Free Assistance', 'कानूनी सहायता (Legal Aid)', 'घरेलू हिंसा व सुरक्षा नियमों पर मुफ़्त वकील रेफ़रल।', 'https://msk.upsdc.gov.in', 2),
-      ('support', '🏫', 'Vocational Training', 'जन शिक्षण संस्थान', 'महिलाओं हेतु मुफ़्त कौशल प्रशिक्षण व प्रमाणपत्र।', 'https://msk.upsdc.gov.in', 3),
-      ('support', '🥋', 'Workshops', 'आत्मरक्षा प्रशिक्षण', 'मुफ़्त सुरक्षा कार्यशालाएं व आत्मरक्षा प्रमाणीकरण।', 'https://msk.upsdc.gov.in', 4);
+      ('welfare', 'female-outline', 'Financial Aid', 'कन्या सुमंगला योजना', 'बेटी की शिक्षा व स्वास्थ्य हेतु सीधा वित्तीय लाभ।', 'https://mksy.up.gov.in', 1),
+      ('welfare', 'heart-outline', 'Marriage Grant', 'शादी अनुदान योजना', 'ग़रीब परिवारों की बेटियों के विवाह हेतु आर्थिक सहायता।', 'https://shadianudan.upsdc.gov.in', 2),
+      ('welfare', 'wallet-outline', 'Widow Pension', 'विधवा पेंशन योजना', 'निराश्रित विधवा महिलाओं हेतु सामाजिक सुरक्षा व पेंशन।', 'https://sspy-up.gov.in', 3),
+      ('welfare', 'trophy-outline', 'Financial Help', 'रानी लक्ष्मीबाई महिला एवं बाल सम्मान कोष', 'संकटग्रस्त महिलाओं व बच्चों हेतु आर्थिक सहायता।', 'https://msk.upsdc.gov.in', 4),
+      ('welfare', 'school-outline', 'Education Aid', 'UP छात्रवृत्ति योजना', 'सभी वर्गों के छात्रों हेतु प्री व पोस्ट मैट्रिक छात्रवृत्ति।', 'https://scholarship.up.gov.in', 5),
+      ('support', 'chatbubble-ellipses-outline', 'Confidential', 'काउंसलिंग सहायता', 'लाइसेंस-प्राप्त मनोवैज्ञानिक विशेषज्ञों से मुफ़्त काउंसलिंग।', 'https://msk.upsdc.gov.in', 1),
+      ('support', 'hammer-outline', 'Free Assistance', 'कानूनी सहायता (Legal Aid)', 'घरेलू हिंसा व सुरक्षा नियमों पर मुफ़्त वकील रेफ़रल।', 'https://msk.upsdc.gov.in', 2),
+      ('support', 'school-outline', 'Vocational Training', 'जन शिक्षण संस्थान', 'महिलाओं हेतु मुफ़्त कौशल प्रशिक्षण व प्रमाणपत्र।', 'https://msk.upsdc.gov.in', 3),
+      ('support', 'fitness-outline', 'Workshops', 'आत्मरक्षा प्रशिक्षण', 'मुफ़्त सुरक्षा कार्यशालाएं व आत्मरक्षा प्रमाणीकरण।', 'https://msk.upsdc.gov.in', 4);
 
   END IF;
 END $$;

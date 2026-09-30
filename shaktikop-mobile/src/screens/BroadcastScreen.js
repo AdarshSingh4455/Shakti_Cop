@@ -93,7 +93,7 @@ export default function BroadcastScreen() {
         <Text style={styles.smallLabel}>{tt('संदेश')}</Text>
         <TextInput style={styles.textarea} placeholder={tt('पूरा संदेश लिखें…')} multiline value={body} onChangeText={setBody} maxLength={2000} />
 
-        <PrimaryButton title={busy ? tt('भेजा जा रहा है…') : '📢 भेजें'} onPress={send} style={{ marginTop: 14 }}  loading={busy} />
+        <PrimaryButton title={busy ? tt('भेजा जा रहा है…') : tt('भेजें')} onPress={send} style={{ marginTop: 14 }}  loading={busy} />
       </View>
       )}
 

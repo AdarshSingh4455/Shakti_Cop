@@ -345,7 +345,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
         {!bioAvailable && (
           <Text style={styles.bioLockWarning}>
-            ⚠️ {tt('इस डिवाइस पर फ़िंगरप्रिंट/फ़ेस-अनलॉक अभी सेट नहीं है।')}
+            {tt('इस डिवाइस पर फ़िंगरप्रिंट/फ़ेस-अनलॉक अभी सेट नहीं है।')}
           </Text>
         )}
         {/* 🆕 "किन-किन डिवाइस में लॉगिन है" — देखें व चाहें तो कोई एक डिवाइस अलग से लॉगआउट करें */}
