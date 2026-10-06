@@ -97,13 +97,16 @@ async function geocodeOne(station, district) {
   ];
 
   for (const q of queries) {
-    const url =
-      `https://us1.locationiq.com/v1/search?key=${API_KEY}` +
-      `&q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=in&addressdetails=1`;
+    const url = API_KEY
+      ? `https://us1.locationiq.com/v1/search?key=${API_KEY}&q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=in&addressdetails=1`
+      : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=in&addressdetails=1`;
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000);
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'ShaktiCop-UPPolice-StationGeocoding/1.0 (uppolice.gov.in)' },
+      });
       clearTimeout(timer);
 
       if (res.status === 429) {
@@ -126,9 +129,7 @@ async function geocodeOne(station, district) {
 
 async function run() {
   if (!API_KEY) {
-    console.error('🔴 LOCATIONIQ_API_KEY .env में सेट नहीं है।');
-    console.error('   मुफ़्त key यहाँ से लें: https://locationiq.com/register');
-    process.exit(1);
+    console.log('ℹ️  LOCATIONIQ_API_KEY सेट नहीं है — OpenStreetMap Nominatim (सार्वजनिक) सेवा का उपयोग किया जा रहा है।');
   }
 
   const params = [];
