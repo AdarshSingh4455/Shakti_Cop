@@ -3,7 +3,7 @@ const db = require('../config/db');
 const { signToken } = require('../utils/jwt');
 const { createRefreshToken, verifyAndRotateRefreshToken, revokeRefreshToken, revokeAllForUser, listActiveSessions, revokeSessionById } = require('../utils/refreshToken');
 const { checkOtpAttempts, recordOtpFailure, clearOtpAttempts } = require('../utils/otpAttempts');
-const { createAndSendOtp, verifyOtp, isEmail } = require('../utils/otp');
+const { createAndSendOtp, verifyOtp, isEmail, OtpDeliveryError } = require('../utils/otp');
 const { logActivity, maskIdentity } = require('../utils/activityLog');
 
 
@@ -43,14 +43,83 @@ async function signupRequestOtp(req, res) {
     }
   }
 
-  const devOtp = await createAndSendOtp(mobile, 'signup', locale, cleanEmail);
-  res.json({ message: 'OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+  try {
+    const devOtp = await createAndSendOtp(mobile, 'signup', locale, cleanEmail);
+    res.json({ message: 'OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+  } catch (err) {
+    if (err.name === 'OtpDeliveryError') {
+      return res.status(err.status || 503).json({ error: err.message, code: err.code });
+    }
+    throw err;
+  }
 }
 
-// POST /auth/citizen/signup/verify   body: { mobile, otp, name, fatherName, address, password }
+// ============================================================
+// MSG91 Widget Access Token स्वतंत्र सत्यापन (Server-Side)
+// ============================================================
+async function verifyMsg91AccessToken(accessToken, expectedIdentifier) {
+  if (!accessToken || typeof accessToken !== 'string' || accessToken.trim().length < 10) {
+    return { valid: false, error: 'अमान्य सत्यापन टोकन' };
+  }
+  const authKey = process.env.MSG91_AUTH_KEY;
+  if (!authKey) {
+    console.error('MSG91_AUTH_KEY सर्वर पर सेट नहीं है; access token सत्यापित नहीं किया जा सकता।');
+    return { valid: false, error: 'सत्यापन सेवा सर्वर पर कॉन्फ़िगर नहीं है' };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch('https://control.msg91.com/api/v5/widget/verifyAccessToken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authkey: authKey,
+      },
+      body: JSON.stringify({ 'access-token': accessToken.trim() }),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
+
+    const data = await res.json();
+
+    // MSG91 returns { type: 'success', message: '919876543210' } or { type: 'error', message: '...', code: 201 }
+    if (!data || data.type !== 'success' || !data.message) {
+      return { valid: false, error: 'OTP सत्यापन टोकन अमान्य या समाप्त हो चुका है' };
+    }
+
+    // Verify identifier binding (phone number or email)
+    if (expectedIdentifier) {
+      const isExpectedEmail = String(expectedIdentifier).includes('@');
+      if (isExpectedEmail) {
+        if (String(data.message).trim().toLowerCase() !== String(expectedIdentifier).trim().toLowerCase()) {
+          console.warn('MSG91 verified email does not match expected identifier');
+          return { valid: false, error: 'सत्यापित ईमेल आईडी मेल नहीं खाती' };
+        }
+      } else {
+        const verifiedDigits = String(data.message).replace(/\D/g, '');
+        const expectedDigits = String(expectedIdentifier).replace(/\D/g, '');
+        const verified10 = verifiedDigits.length >= 10 ? verifiedDigits.slice(-10) : verifiedDigits;
+        const expected10 = expectedDigits.length >= 10 ? expectedDigits.slice(-10) : expectedDigits;
+
+        if (verified10 !== expected10) {
+          console.warn('MSG91 verified number does not match expected identifier');
+          return { valid: false, error: 'सत्यापित मोबाइल नंबर मेल नहीं खाता' };
+        }
+      }
+    }
+
+    return { valid: true, verifiedIdentifier: data.message };
+  } catch (err) {
+    console.warn('MSG91 verifyAccessToken error:', err?.message);
+    return { valid: false, error: 'सत्यापन सेवा से संपर्क करने में असमर्थ' };
+  }
+}
+
+// POST /auth/citizen/signup/verify   body: { mobile, otp, name, fatherName, address, password, email, msg91AccessToken }
 async function signupVerify(req, res) {
-  const { mobile, otp, name, fatherName, address, password, email } = req.body;
-  if (!mobile || !otp || !name || !password) {
+  const { mobile, otp, name, fatherName, address, password, email, msg91AccessToken } = req.body;
+  if (!mobile || (!otp && !msg91AccessToken) || !name || !password) {
     return res.status(400).json({ error: 'नाम, मोबाइल, OTP और पासवर्ड आवश्यक हैं' });
   }
   // 🐛 बग फ़िक्स: signup में नाम/पिता-का-नाम/पता पर कोई जांच ही नहीं थी, जबकि वही
@@ -84,10 +153,22 @@ async function signupVerify(req, res) {
     res.set('Retry-After', String(gate_signup.retryAfterSec));
     return res.status(429).json({ error: gate_signup.error });
   }
-  const isValid = await verifyOtp(mobile, otp, 'signup');
-  if (!isValid) {
-    await recordOtpFailure(req, 'signup');
-    return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
+
+  if (msg91AccessToken) {
+    const vResult = await verifyMsg91AccessToken(msg91AccessToken, mobile);
+    if (!vResult.valid) {
+      await recordOtpFailure(req, 'signup');
+      return res.status(401).json({ error: vResult.error || 'OTP सत्यापन असफल रहा' });
+    }
+  } else {
+    if (!otp) {
+      return res.status(400).json({ error: 'OTP आवश्यक है' });
+    }
+    const isValid = await verifyOtp(mobile, otp, 'signup');
+    if (!isValid) {
+      await recordOtpFailure(req, 'signup');
+      return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
+    }
   }
   await clearOtpAttempts(req, 'signup'); // सफल — असली उपयोगकर्ता के नाम पुरानी असफलताएँ न टिकें
 
@@ -173,10 +254,17 @@ async function forgotPasswordRequestOtp(req, res) {
   const existing = await db.query('SELECT id, email FROM citizens WHERE mobile = $1', [mobile]);
   // ⚠️ devOtp सिर्फ़ ALLOW_INSECURE_DEV_LOGIN/OTP_DEV_MODE में लौटता है (createAndSendOtp में तय),
   // इसलिए dev/test में सुविधा बनी रहती है, पर production में जवाब हमेशा एक जैसा दिखता है।
-  const devOtp = existing.rows.length > 0
-    ? await createAndSendOtp(mobile, 'reset_password', locale, existing.rows[0].email)
-    : undefined;
-  res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+  try {
+    const devOtp = existing.rows.length > 0
+      ? await createAndSendOtp(mobile, 'reset_password', locale, existing.rows[0].email)
+      : undefined;
+    res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+  } catch (err) {
+    if (err.name === 'OtpDeliveryError') {
+      return res.status(err.status || 503).json({ error: err.message, code: err.code });
+    }
+    throw err;
+  }
 }
 
 // POST /auth/citizen/forgot-password/reset   body: { mobile, otp, newPassword }
@@ -257,8 +345,15 @@ async function officerRequestOtp(req, res) {
   // बाक़ी को कुछ पता नहीं चलता। (नंबर ग़लत टाइप हो जाए तो OTP न आना ही संकेत है —
   // यही तरीक़ा हर बड़ी सेवा में अपनाया जाता है।)
   if (result.rows.length > 0) {
-    const devOtp = await createAndSendOtp(mobile, 'officer_login', locale);
-    return res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+    try {
+      const devOtp = await createAndSendOtp(mobile, 'officer_login', locale);
+      return res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+    } catch (err) {
+      if (err.name === 'OtpDeliveryError') {
+        return res.status(err.status || 503).json({ error: err.message, code: err.code });
+      }
+      throw err;
+    }
   }
   return res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है' });
 }
@@ -335,16 +430,23 @@ async function staffRequestOtp(req, res) {
   // केंद्रित करना है। (ऊपर officerRequestOtp में यही सुधार किया गया है।)
   const exists = officerCheck.rows.length > 0 || adminCheck.rows.length > 0;
   if (exists) {
-    const devOtp = await createAndSendOtp(identifier, 'staff_login', locale);
-    return res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+    try {
+      const devOtp = await createAndSendOtp(identifier, 'staff_login', locale);
+      return res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
+    } catch (err) {
+      if (err.name === 'OtpDeliveryError') {
+        return res.status(err.status || 503).json({ error: err.message, code: err.code });
+      }
+      throw err;
+    }
   }
   return res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है' });
 }
 
-// POST /auth/staff/verify-otp   body: { identifier, otp }
+// POST /auth/staff/verify-otp   body: { identifier, otp, msg91AccessToken }
 async function staffVerifyOtp(req, res) {
-  const { identifier, otp } = req.body;
-  if (!identifier || !otp) {
+  const { identifier, otp, msg91AccessToken } = req.body;
+  if (!identifier || (!otp && !msg91AccessToken)) {
     return res.status(400).json({ error: 'पहचान और OTP दोनों आवश्यक हैं' });
   }
   // 🔒 OTP सत्यापन की अतिरिक्त सुरक्षा — पहचान+purpose के हिसाब से असफल कोशिशों की
@@ -354,10 +456,22 @@ async function staffVerifyOtp(req, res) {
     res.set('Retry-After', String(gate_staff_login.retryAfterSec));
     return res.status(429).json({ error: gate_staff_login.error });
   }
-  const isValid = await verifyOtp(identifier, otp, 'staff_login');
-  if (!isValid) {
-    await recordOtpFailure(req, 'staff_login');
-    return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
+
+  if (msg91AccessToken) {
+    const vResult = await verifyMsg91AccessToken(msg91AccessToken, identifier);
+    if (!vResult.valid) {
+      await recordOtpFailure(req, 'staff_login');
+      return res.status(401).json({ error: vResult.error || 'OTP सत्यापन असफल रहा' });
+    }
+  } else {
+    if (!otp) {
+      return res.status(400).json({ error: 'OTP आवश्यक है' });
+    }
+    const isValid = await verifyOtp(identifier, otp, 'staff_login');
+    if (!isValid) {
+      await recordOtpFailure(req, 'staff_login');
+      return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
+    }
   }
   await clearOtpAttempts(req, 'staff_login'); // सफल — असली उपयोगकर्ता के नाम पुरानी असफलताएँ न टिकें
 
@@ -566,4 +680,5 @@ module.exports = {
   logoutAll,
   listSessions,
   revokeSession,
+  verifyMsg91AccessToken,
 };

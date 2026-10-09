@@ -10,14 +10,16 @@ const EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const ALGORITHM = 'HS256';
 
 function signToken(payload) {
-  return jwt.sign(payload, SECRET, { expiresIn: EXPIRES_IN, algorithm: ALGORITHM });
+  const secret = process.env.JWT_SECRET || SECRET;
+  return jwt.sign(payload, secret, { expiresIn: EXPIRES_IN, algorithm: ALGORITHM });
 }
 
 function verifyToken(token) {
   // 🔒 algorithm explicitly pin करना ज़रूरी है — इसके बिना jwt.verify टोकन के अपने
   // header में लिखे algorithm पर भरोसा कर सकता है, जिससे "algorithm confusion" हमला
   // संभव हो सकता है (जैसे कोई token alg बदलकर भेजे)। सिर्फ़ HS256 ही स्वीकार करें।
-  return jwt.verify(token, SECRET, { algorithms: [ALGORITHM] });
+  const secret = process.env.JWT_SECRET || SECRET;
+  return jwt.verify(token, secret, { algorithms: [ALGORITHM] });
 }
 
 module.exports = { signToken, verifyToken };

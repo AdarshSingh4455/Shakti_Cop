@@ -106,6 +106,24 @@ function detectSmsProvider() {
 
 const SMS_PROVIDER = detectSmsProvider();
 
+class OtpDeliveryError extends Error {
+  constructor(message, code = 'SMS_GATEWAY_ERROR', status = 503) {
+    super(message);
+    this.name = 'OtpDeliveryError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+function maskMobileForLog(mobile) {
+  if (!mobile) return 'unknown';
+  const digits = String(mobile).replace(/\D/g, '');
+  if (digits.length >= 10) {
+    return 'XXXXXX' + digits.slice(-4);
+  }
+  return 'XXXX';
+}
+
 // भारतीय नंबर को 91 सहित सामान्य रूप में लाएं (गेटवे 10-अंकी और 91xxxxxxxxxx दोनों माँगते हैं)
 function normalizeMobile(mobile) {
   const digits = String(mobile).replace(/\D/g, '');
@@ -135,13 +153,14 @@ async function postJson(url, body, headers = {}) {
 
 async function sendViaMsg91(mobile, message, otpCode) {
   const { withCode } = normalizeMobile(mobile);
+  const templateId = process.env.MSG91_TEMPLATE_ID || process.env.MSG91_OTP_TEMPLATE_ID;
   // Template ID हो तो MSG91 का OTP API (DLT-अनुपालक, भारत में अनिवार्य),
   // वरना सामान्य SMS API
-  if (process.env.MSG91_TEMPLATE_ID && otpCode) {
+  if (templateId && otpCode) {
     return postJson(
       'https://control.msg91.com/api/v5/flow/',
       {
-        template_id: process.env.MSG91_TEMPLATE_ID,
+        template_id: templateId,
         sender: process.env.MSG91_SENDER_ID || 'SHKTCP',
         short_url: '0',
         recipients: [{ mobiles: withCode, OTP: otpCode }],
@@ -220,35 +239,47 @@ async function sendViaTwilio(mobile, message) {
   }
 }
 
-async function sendSms(mobile, message, otpCode) {
-  if (!SMS_PROVIDER) {
-    // 🔒 सुरक्षा फ़िक्स: यह विकास (development) के लिए बनी सुविधा है — बिना SMS gateway
-    // के भी OTP console में दिखे ताकि testing हो सके। लेकिन production में यही सुविधा
-    // ख़तरा बन जाती है: अगर gateway सेट करना छूट जाए या उसका config ग़लत हो, तो हर OTP
-    // सर्वर लॉग में साफ़-साफ़ लिखा चला जाता। Railway के लॉग देख पाने वाला कोई भी व्यक्ति
-    // किसी के भी खाते में (Super Admin समेत) घुस सकता था — बिना पासवर्ड जाने।
-    // अब production में OTP कभी लॉग नहीं होता; उसकी जगह एक साफ़ चेतावनी मिलती है ताकि
-    // यह चूक चुपचाप छिपी न रहे।
+async function sendSms(mobile, message, otpCode, options = {}) {
+  const { throwOnError = false } = options;
+  const currentProvider = detectSmsProvider();
+  const maskedMobile = maskMobileForLog(mobile);
+
+  if (!currentProvider) {
     if (process.env.NODE_ENV === 'production') {
       console.error(
-        `🔴 SMS gateway सेट नहीं है — ${mobile} को OTP नहीं भेजा जा सका। ` +
-        'MSG91/Fast2SMS/Twilio में से कोई एक कॉन्फ़िगर करें (OTP सुरक्षा कारणों से लॉग नहीं किया गया)।'
+        `🔴 SMS gateway सेट नहीं है — ${maskedMobile} को SMS नहीं भेजा जा सका। ` +
+        'MSG91/Fast2SMS/Twilio में से कोई एक कॉन्फ़िगर करें।'
       );
-      return;
+    } else {
+      console.log(`[SMS → ${maskedMobile}] ⚠️ कोई SMS gateway सेट नहीं है (MSG91/Fast2SMS/Twilio)`);
     }
-    console.log(`[SMS → ${mobile}] ${message}`);
-    console.log('⚠️ कोई SMS gateway सेट नहीं है (MSG91/Fast2SMS/Twilio) — असली SMS नहीं गया।');
-    return;
+
+    if (throwOnError) {
+      throw new OtpDeliveryError(
+        'SMS सेवा वर्तमान में उपलब्ध नहीं है। कृपया कुछ समय बाद पुनः प्रयास करें।',
+        'SMS_GATEWAY_NOT_CONFIGURED',
+        503
+      );
+    }
+    return false;
   }
+
   try {
-    if (SMS_PROVIDER === 'msg91') await sendViaMsg91(mobile, message, otpCode);
-    else if (SMS_PROVIDER === 'fast2sms') await sendViaFast2Sms(mobile, message);
-    else if (SMS_PROVIDER === 'twilio') await sendViaTwilio(mobile, message);
-    console.log(`[SMS ✓ ${SMS_PROVIDER} → ${mobile}] भेजा गया`);
+    if (currentProvider === 'msg91') await sendViaMsg91(mobile, message, otpCode);
+    else if (currentProvider === 'fast2sms') await sendViaFast2Sms(mobile, message);
+    else if (currentProvider === 'twilio') await sendViaTwilio(mobile, message);
+    console.log(`[SMS ✓ ${currentProvider} → ${maskedMobile}] भेजा गया`);
+    return true;
   } catch (err) {
-    // ⚠️ जानबूझकर throw नहीं करते — गेटवे बंद हो तो भी पूरा लॉगिन-फ़्लो न टूटे।
-    // OTP डेटाबेस में सुरक्षित है; उपयोगकर्ता "दोबारा भेजें" दबा सकता है।
-    console.error(`SMS भेजने में त्रुटि (${SMS_PROVIDER}):`, err.message);
+    console.error(`SMS भेजने में त्रुटि (${currentProvider}):`, err.message);
+    if (throwOnError) {
+      throw new OtpDeliveryError(
+        'SMS भेजने में विफलता हुई। कृपया पुनः प्रयास करें।',
+        'SMS_DISPATCH_FAILED',
+        502
+      );
+    }
+    return false;
   }
 }
 // ============================================================
@@ -569,18 +600,23 @@ async function createAndSendOtp(mobile, purpose = 'signup', locale = 'hi', alsoE
   if (isEmail(normalized)) {
     await sendEmail(normalized, emailSubject, message, emailHtml);
   } else {
-    await sendSms(normalized, message, otpCode);
+    try {
+      await sendSms(normalized, message, otpCode, { throwOnError: true });
+    } catch (err) {
+      await db.query(
+        `UPDATE otp_requests SET verified = true
+         WHERE mobile = $1 AND purpose = $2 AND verified = false`,
+        [normalized, purpose]
+      );
+      resendCooldowns.delete(cooldownKey);
+      throw err;
+    }
 
     // 🆕 अगर नागरिक ने ईमेल भी दिया है, तो वही OTP वहाँ भी भेजें।
     //
     // क्यों ज़रूरी है: SMS हर बार नहीं पहुँचता — नेटवर्क, DLT-रुकावट, या नंबर किसी
     // और के नाम/कब्ज़े में होना (घरेलू-हिंसा के मामलों में यह आम है)। ऐसे में अगर
     // ईमेल मौजूद है तो नागरिक फिर भी लॉगिन कर पाती है।
-    //
-    // ⚠️ ईमेल जान-बूझकर SMS के *बाद* भेजी जाती है। sendEmail खुद कभी त्रुटि नहीं
-    //    फेंकता — वह भीतर ही .catch() कर लेता है और जवाब का इंतज़ार भी नहीं करता
-    //    (fire-and-forget) — इसलिए Gmail बंद हो या पता ग़लत, OTP-flow कभी नहीं रुकता।
-    //    यहाँ try/catch सिर्फ़ अतिरिक्त सुरक्षा के लिए है, ज़रूरत नहीं पड़ती।
     if (alsoEmail && isEmail(String(alsoEmail).trim().toLowerCase())) {
       try {
         await sendEmail(String(alsoEmail).trim(), emailSubject, message, emailHtml);
@@ -655,4 +691,4 @@ async function verifyOtp(mobile, otpCode, purpose = 'signup') {
   return result.rows.length > 0;
 }
 
-module.exports = { createAndSendOtp, verifyOtp, isEmail, sendSms, sendEmailWithAttachment };
+module.exports = { createAndSendOtp, verifyOtp, isEmail, sendSms, sendEmailWithAttachment, OtpDeliveryError, maskMobileForLog };

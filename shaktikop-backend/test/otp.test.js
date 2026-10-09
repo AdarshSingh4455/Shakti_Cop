@@ -73,7 +73,7 @@ test('मोबाइल OTP generation — dev मोड में लौटत
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
-  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: undefined, FAST2SMS_API_KEY: undefined, TWILIO_ACCOUNT_SID: undefined }, async () => {
+  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
     const code = await otp.createAndSendOtp('9000000001', 'signup', 'hi');
     assert.match(code, /^\d{6}$/, 'OTP 6 अंकों का होना चाहिए');
@@ -101,7 +101,7 @@ test('सही OTP — verifyOtp सफल, और उसी कोड का �
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
-  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true' }, async () => {
+  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
     const code = await otp.createAndSendOtp('9000000002', 'signup', 'hi');
     const ok1 = await otp.verifyOtp('9000000002', code, 'signup');
@@ -115,7 +115,7 @@ test('गलत OTP — verifyOtp विफल होता है', async (t) =
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
-  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true' }, async () => {
+  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
     await otp.createAndSendOtp('9000000003', 'signup', 'hi');
     const ok = await otp.verifyOtp('9000000003', '000000', 'signup');
@@ -127,7 +127,7 @@ test('समाप्त (expired) OTP — verifyOtp विफल होता �
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
-  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true' }, async () => {
+  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
     const code = await otp.createAndSendOtp('9000000004', 'signup', 'hi');
     // समय को पीछे धकेलकर OTP को कृत्रिम रूप से expire करें
@@ -141,7 +141,7 @@ test('excessive verification attempts — purpose अलग होने पर 
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
-  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true' }, async () => {
+  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
     const code = await otp.createAndSendOtp('9000000005', 'signup', 'hi');
     // गलत purpose से सत्यापन विफल होना चाहिए, भले ही OTP सही हो
@@ -171,7 +171,7 @@ test('resend cooldown — अलग पहचान पर कोई असर �
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
-  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', OTP_RESEND_COOLDOWN_SECONDS: '30' }, async () => {
+  await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', OTP_RESEND_COOLDOWN_SECONDS: '30', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
     await otp.createAndSendOtp('9000000007', 'signup', 'hi');
     const otherIdentifier = await otp.createAndSendOtp('9000000008', 'signup', 'hi');
@@ -181,20 +181,28 @@ test('resend cooldown — अलग पहचान पर कोई असर �
   });
 });
 
-test('provider failure — SMS गेटवे विफल हो तो भी createAndSendOtp क्रैश नहीं होता, OTP फिर भी सत्यापित होता है', async (t) => {
+test('provider failure — SMS गेटवे विफल होने पर createAndSendOtp controlled error फेंकता है और DB में OTP निरस्त करता है', async (t) => {
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchFail(t);
   await withEnv({ NODE_ENV: 'test', OTP_DEV_MODE: 'true', MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template' }, async () => {
     const otp = freshRequire(OTP_JS);
-    const code = await otp.createAndSendOtp('9000000009', 'signup', 'hi');
-    assert.match(code, /^\d{6}$/, 'gateway विफल होने पर भी function क्रैश नहीं होना चाहिए');
-    const ok = await otp.verifyOtp('9000000009', code, 'signup');
-    assert.equal(ok, true, 'भेजना विफल हुआ हो तब भी OTP DB में सुरक्षित रहना चाहिए (उपयोगकर्ता दोबारा भेज सकता है)');
+    await assert.rejects(
+      () => otp.createAndSendOtp('9000000009', 'signup', 'hi'),
+      (err) => {
+        assert.equal(err.name, 'OtpDeliveryError');
+        assert.equal(err.code, 'SMS_DISPATCH_FAILED');
+        assert.equal(err.status, 502);
+        return true;
+      }
+    );
+    const row = fake._rows().find((r) => r.mobile === '9000000009');
+    assert.ok(row, 'DB में पंक्ति बननी चाहिए');
+    assert.equal(row.verified, true, 'असफल dispatch पर OTP row invalidated होनी चाहिए');
   });
 });
 
-test('missing provider configuration — कोई SMS/ईमेल gateway सेट न हो तो भी function क्रैश नहीं होता', async (t) => {
+test('missing provider configuration — कोई SMS gateway सेट न होने पर controlled error फेंकता है', async (t) => {
   const fake = makeFakeOtpTable();
   t.mock.method(db, 'query', fake.query);
   mockFetchOk(t);
@@ -204,8 +212,15 @@ test('missing provider configuration — कोई SMS/ईमेल gateway स�
     RESEND_API_KEY: undefined, GMAIL_USER: undefined, GMAIL_APP_PASSWORD: undefined,
   }, async () => {
     const otp = freshRequire(OTP_JS);
-    const code = await otp.createAndSendOtp('9000000010', 'signup', 'hi');
-    assert.match(code, /^\d{6}$/, 'provider न होने पर भी OTP बनना/स्टोर होना चाहिए');
+    await assert.rejects(
+      () => otp.createAndSendOtp('9000000010', 'signup', 'hi'),
+      (err) => {
+        assert.equal(err.name, 'OtpDeliveryError');
+        assert.equal(err.code, 'SMS_GATEWAY_NOT_CONFIGURED');
+        assert.equal(err.status, 503);
+        return true;
+      }
+    );
   });
 });
 
@@ -216,6 +231,7 @@ test('production में OTP कभी API response में नहीं ल
   await withEnv({
     NODE_ENV: 'production', OTP_DEV_MODE: 'true', // ⚠️ जानबूझकर true — फिर भी prod में न लौटे, यही असली जांच है
     ALLOW_INSECURE_DEV_LOGIN: undefined, DEV_OTP_SIGNUP_ONLY: undefined, DEMO_ACCOUNTS: undefined,
+    MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template',
   }, async () => {
     const otp = freshRequire(OTP_JS);
     const code = await otp.createAndSendOtp('9000000011', 'signup', 'hi');
@@ -233,7 +249,7 @@ test('production में OTP कभी log नहीं होता (console.
   await withEnv({
     NODE_ENV: 'production', OTP_DEV_MODE: 'true',
     ALLOW_INSECURE_DEV_LOGIN: undefined, DEV_OTP_SIGNUP_ONLY: undefined, DEMO_ACCOUNTS: undefined,
-    MSG91_AUTH_KEY: undefined, FAST2SMS_API_KEY: undefined, TWILIO_ACCOUNT_SID: undefined,
+    MSG91_AUTH_KEY: 'fake-key', MSG91_TEMPLATE_ID: 'fake-template',
   }, async () => {
     const otp = freshRequire(OTP_JS);
     const code = await otp.createAndSendOtp('9000000012', 'signup', 'hi');
