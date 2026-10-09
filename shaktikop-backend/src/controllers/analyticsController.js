@@ -263,24 +263,73 @@ async function getOfficerLeaderboard(req, res) {
     ? req.query.sortBy
     : 'resolved';
 
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const queryDistrict = req.query.district ? String(req.query.district).trim() : null;
+
   let districtFilter = '';
   const params = [];
   // 🐛 बग फ़िक्स (गंभीर): Officer Performance Leaderboard में rangeDistricts
   // (IG/DIG) की जांच छूट गई थी — नतीजा, IG/DIG को पूरे राज्य का leaderboard
   // दिखता, सिर्फ़ अपने Range का नहीं।
   if (req.adminScope?.rangeDistricts && req.adminScope.rangeDistricts.length > 0) {
-    params.push(req.adminScope.rangeDistricts);
-    districtFilter = ` AND o.district = ANY($${params.length})`;
+    const allowed = req.adminScope.rangeDistricts.map(norm);
+    if (queryDistrict) {
+      if (!allowed.includes(norm(queryDistrict))) {
+        return res.status(403).json({ error: 'यह ज़िला आपके Range (परिक्षेत्र) में नहीं है' });
+      }
+      params.push(norm(queryDistrict));
+      districtFilter = ` AND TRIM(LOWER(o.district)) = $${params.length}`;
+    } else {
+      params.push(allowed);
+      districtFilter = ` AND TRIM(LOWER(o.district)) = ANY($${params.length})`;
+    }
+    if (filters.station) {
+      params.push(norm(filters.station));
+      districtFilter += ` AND TRIM(LOWER(o.station)) = $${params.length}`;
+    }
   } else if (req.adminScope?.circleStations && req.adminScope.circleStations.length > 0) {
-    params.push(req.adminScope.circleStations);
-    districtFilter = ` AND o.station = ANY($${params.length})`;
+    const allowedStations = req.adminScope.circleStations.map(norm);
+    const scopeDistrict = req.adminScope.district ? norm(req.adminScope.district) : null;
+    if (queryDistrict && scopeDistrict && norm(queryDistrict) !== scopeDistrict) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के आंकड़े देख सकते हैं` });
+    }
+    if (filters.station) {
+      if (!allowedStations.includes(norm(filters.station))) {
+        return res.status(403).json({ error: 'यह थाना आपके सर्किल में नहीं है' });
+      }
+      params.push(norm(filters.station));
+      districtFilter = ` AND TRIM(LOWER(o.station)) = $${params.length}`;
+    } else {
+      params.push(allowedStations);
+      districtFilter = ` AND TRIM(LOWER(o.station)) = ANY($${params.length})`;
+    }
+    if (scopeDistrict) {
+      params.push(scopeDistrict);
+      districtFilter += ` AND TRIM(LOWER(o.district)) = $${params.length}`;
+    }
   } else if (req.adminScope?.district) {
-    params.push(req.adminScope.district);
-    districtFilter = ` AND o.district = $${params.length}`;
-  }
-  if (filters.station) {
-    params.push(filters.station);
-    districtFilter += ` AND o.station = $${params.length}`;
+    const scopeDistrict = norm(req.adminScope.district);
+    if (queryDistrict && norm(queryDistrict) !== scopeDistrict) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के आंकड़े देख सकते हैं` });
+    }
+    params.push(scopeDistrict);
+    districtFilter = ` AND TRIM(LOWER(o.district)) = $${params.length}`;
+    if (filters.station) {
+      params.push(norm(filters.station));
+      districtFilter += ` AND TRIM(LOWER(o.station)) = $${params.length}`;
+    }
+  } else if (req.user?.adminRole === 'super_admin') {
+    // Super Admin: unscoped by default
+    if (queryDistrict) {
+      params.push(norm(queryDistrict));
+      districtFilter += ` AND TRIM(LOWER(o.district)) = $${params.length}`;
+    }
+    if (filters.station) {
+      params.push(norm(filters.station));
+      districtFilter += ` AND TRIM(LOWER(o.station)) = $${params.length}`;
+    }
+  } else {
+    return res.status(403).json({ error: 'अमान्य अधिकार क्षेत्र — आपके खाते के लिए कोई वैध ज़िला या क्षेत्र निर्धारित नहीं है' });
   }
 
   // शिकायत-स्तर के फ़िल्टर (date range/category/status) LEFT JOIN की शर्त में लगते

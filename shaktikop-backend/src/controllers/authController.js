@@ -333,17 +333,13 @@ async function officerRequestOtp(req, res) {
   if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
     return res.status(400).json({ error: 'कृपया मान्य 10 अंकों का मोबाइल नंबर दें' });
   }
+  const inactiveOfficer = await db.query('SELECT id, name FROM officers WHERE mobile = $1 AND is_active = false', [mobile]);
+  if (inactiveOfficer.rows.length > 0) {
+    logActivity({ actorRole: 'system', actorId: inactiveOfficer.rows[0].id, actorName: inactiveOfficer.rows[0].name, action: 'inactive_officer_otp_denied', details: `निष्क्रिय अधिकारी खाते से OTP अनुरोध रोका गया (${mobile})`, req });
+    return res.status(403).json({ error: 'यह खाता निष्क्रिय कर दिया गया है — कृपया व्यवस्थापक से संपर्क करें' });
+  }
+
   const result = await db.query('SELECT id FROM officers WHERE mobile = $1 AND is_active = true', [mobile]);
-  // 🔒 सुरक्षा फ़िक्स (खाता-पहचान का रिसाव): पहले खाता न मिलने पर साफ़ 404 लौटता था —
-  // यानी कोई भी एक-एक नंबर आज़माकर पता कर सकता था कि कौन-सा मोबाइल किसी सेवारत
-  // अधिकारी का है। इससे अधिकारियों के निजी नंबरों की सूची बनाई जा सकती है, जो
-  // targeted social-engineering, धमकी, या brute-force को सिर्फ़ असली खातों पर
-  // केंद्रित करने में काम आती है। नागरिक वाले "पासवर्ड भूल गए" में यह पहले से ठीक
-  // था (वहाँ सामान्य संदेश जाता है) — अधिकारी वाला रास्ता उससे अलग रह गया था।
-  //
-  // अब जवाब दोनों स्थितियों में एक जैसा है। जिनका खाता है उन्हें OTP मिल जाता है;
-  // बाक़ी को कुछ पता नहीं चलता। (नंबर ग़लत टाइप हो जाए तो OTP न आना ही संकेत है —
-  // यही तरीक़ा हर बड़ी सेवा में अपनाया जाता है।)
   if (result.rows.length > 0) {
     try {
       const devOtp = await createAndSendOtp(mobile, 'officer_login', locale);
@@ -421,13 +417,29 @@ async function staffRequestOtp(req, res) {
   }
 
   const field = isEmail(identifier) ? 'email' : 'mobile';
+
+  // 🔒 सुरक्षा: निष्क्रिय स्टाफ़/Admin खाते OTP अनुरोध नहीं कर सकते
+  const inactiveCheck = await db.query(
+    `SELECT 'officer' AS role, id, name FROM officers WHERE LOWER(TRIM(${field})) = LOWER(TRIM($1)) AND is_active = false
+     UNION
+     SELECT 'admin' AS role, id, name FROM admins WHERE LOWER(TRIM(${field})) = LOWER(TRIM($1)) AND is_active = false`,
+    [identifier]
+  );
+  if (inactiveCheck.rows.length > 0) {
+    logActivity({
+      actorRole: 'system',
+      actorId: inactiveCheck.rows[0].id,
+      actorName: inactiveCheck.rows[0].name,
+      action: 'inactive_staff_otp_denied',
+      details: `निष्क्रिय स्टाफ़ खाते से OTP अनुरोध रोका गया (${identifier})`,
+      req,
+    });
+    return res.status(403).json({ error: 'यह खाता निष्क्रिय कर दिया गया है — कृपया व्यवस्थापक से संपर्क करें' });
+  }
+
   const officerCheck = await db.query(`SELECT id FROM officers WHERE LOWER(TRIM(${field})) = LOWER(TRIM($1)) AND is_active = true`, [identifier]);
   const adminCheck = await db.query(`SELECT id FROM admins WHERE LOWER(TRIM(${field})) = LOWER(TRIM($1)) AND is_active = true`, [identifier]);
 
-  // 🔒 सुरक्षा फ़िक्स (खाता-पहचान का रिसाव): यह रास्ता अधिकारी *और* admin — दोनों को
-  // कवर करता है, इसलिए यहाँ रिसाव और भी गंभीर था: कोई भी पहचान आज़माकर पता कर सकता
-  // था कि कौन-सा नंबर/ईमेल किसी सक्रिय staff खाते का है, यानी हमला किस पहचान पर
-  // केंद्रित करना है। (ऊपर officerRequestOtp में यही सुधार किया गया है।)
   const exists = officerCheck.rows.length > 0 || adminCheck.rows.length > 0;
   if (exists) {
     try {

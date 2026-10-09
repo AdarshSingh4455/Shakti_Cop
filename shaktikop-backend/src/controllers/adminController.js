@@ -13,18 +13,24 @@ const { validateName, validateMobile, validateEmail, validateUrl, validateTextLe
 // कार्रवाई कर सकें, दूसरे ज़िले/सर्किल के अधिकारी पर नहीं। super_admin पर कोई सीमा नहीं।
 function isOfficerInScope(req, officerRow) {
   if (!officerRow) return true; // 404 आगे खुद हैंडल होगा
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const offDistrict = norm(officerRow.district);
+  const offStation = norm(officerRow.station);
+
   if (req.adminScope?.rangeDistricts && req.adminScope.rangeDistricts.length > 0) {
-    return req.adminScope.rangeDistricts.includes(officerRow.district);
+    return req.adminScope.rangeDistricts.map(norm).includes(offDistrict);
   }
   if (req.adminScope?.circleStations && req.adminScope.circleStations.length > 0) {
-    // 🐛 बग फ़िक्स: थाने का नाम अकेले अद्वितीय नहीं ("कोतवाली" 65 ज़िलों में) — ज़िला भी जांचें
-    if (req.adminScope.district && officerRow.district !== req.adminScope.district) return false;
-    return req.adminScope.circleStations.includes(officerRow.station);
+    if (req.adminScope.district && offDistrict !== norm(req.adminScope.district)) return false;
+    return req.adminScope.circleStations.map(norm).includes(offStation);
   }
   if (req.adminScope?.district) {
-    return req.adminScope.district === officerRow.district;
+    return norm(req.adminScope.district) === offDistrict;
   }
-  return true; // कोई scope सीमा नहीं (super_admin)
+  if (req.user?.adminRole === 'super_admin') {
+    return true;
+  }
+  return false;
 }
 function toOfficerAdmin(o) {
   return {
@@ -49,20 +55,72 @@ function toOfficerAdmin(o) {
 
 // GET /admin/officers   — सभी अधिकारी (active + inactive), प्रबंधन के लिए
 async function listAllOfficers(req, res) {
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const queryDistrict = req.query.district ? String(req.query.district).trim() : null;
+  const queryStation = req.query.station ? String(req.query.station).trim() : null;
+
   let result;
-  // 🐛 बग फ़िक्स: rangeDistricts (IG/DIG) की जांच छूट गई थी
   if (req.adminScope?.rangeDistricts && req.adminScope.rangeDistricts.length > 0) {
-    result = await db.query('SELECT * FROM officers WHERE district = ANY($1) ORDER BY created_at DESC', [req.adminScope.rangeDistricts]);
+    const allowed = req.adminScope.rangeDistricts.map(norm);
+    if (queryDistrict) {
+      if (!allowed.includes(norm(queryDistrict))) {
+        return res.status(403).json({ error: 'यह ज़िला आपके Range (परिक्षेत्र) में नहीं है' });
+      }
+      result = await db.query(
+        'SELECT * FROM officers WHERE TRIM(LOWER(district)) = $1 ORDER BY created_at DESC',
+        [norm(queryDistrict)]
+      );
+    } else {
+      result = await db.query(
+        'SELECT * FROM officers WHERE TRIM(LOWER(district)) = ANY($1) ORDER BY created_at DESC',
+        [allowed]
+      );
+    }
   } else if (req.adminScope?.circleStations && req.adminScope.circleStations.length > 0) {
-    // 🐛 बग फ़िक्स: थाने का नाम अकेले अद्वितीय नहीं ("कोतवाली" 65 ज़िलों में) — ज़िला भी जोड़ें
-    result = await db.query(
-      'SELECT * FROM officers WHERE station = ANY($1) AND ($2::text IS NULL OR TRIM(LOWER(district)) = TRIM(LOWER($2))) ORDER BY created_at DESC',
-      [req.adminScope.circleStations, req.adminScope.district || null]
-    );
+    const allowedStations = req.adminScope.circleStations.map(norm);
+    const scopeDistrict = req.adminScope.district ? norm(req.adminScope.district) : null;
+    if (queryDistrict && scopeDistrict && norm(queryDistrict) !== scopeDistrict) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के अधिकारी देख सकते हैं` });
+    }
+    if (queryStation) {
+      if (!allowedStations.includes(norm(queryStation))) {
+        return res.status(403).json({ error: 'यह थाना आपके सर्किल में नहीं है' });
+      }
+      result = await db.query(
+        'SELECT * FROM officers WHERE TRIM(LOWER(station)) = $1 AND ($2::text IS NULL OR TRIM(LOWER(district)) = $2) ORDER BY created_at DESC',
+        [norm(queryStation), scopeDistrict]
+      );
+    } else {
+      result = await db.query(
+        'SELECT * FROM officers WHERE TRIM(LOWER(station)) = ANY($1) AND ($2::text IS NULL OR TRIM(LOWER(district)) = $2) ORDER BY created_at DESC',
+        [allowedStations, scopeDistrict]
+      );
+    }
   } else if (req.adminScope?.district) {
-    result = await db.query('SELECT * FROM officers WHERE district = $1 ORDER BY created_at DESC', [req.adminScope.district]);
+    const scopeDistrict = norm(req.adminScope.district);
+    if (queryDistrict && norm(queryDistrict) !== scopeDistrict) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के अधिकारी देख सकते हैं` });
+    }
+    result = await db.query(
+      'SELECT * FROM officers WHERE TRIM(LOWER(district)) = $1 ORDER BY created_at DESC',
+      [scopeDistrict]
+    );
+  } else if (req.user?.adminRole === 'super_admin') {
+    // Super Admin: unscoped by default, can filter by queryDistrict / queryStation if requested
+    const clauses = [];
+    const params = [];
+    if (queryDistrict) {
+      params.push(norm(queryDistrict));
+      clauses.push(`TRIM(LOWER(district)) = $${params.length}`);
+    }
+    if (queryStation) {
+      params.push(norm(queryStation));
+      clauses.push(`TRIM(LOWER(station)) = $${params.length}`);
+    }
+    const whereSql = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    result = await db.query(`SELECT * FROM officers ${whereSql} ORDER BY created_at DESC`, params);
   } else {
-    result = await db.query('SELECT * FROM officers ORDER BY created_at DESC');
+    return res.status(403).json({ error: 'अमान्य अधिकार क्षेत्र — आपके खाते के लिए कोई वैध ज़िला या क्षेत्र निर्धारित नहीं है' });
   }
   res.json(result.rows.map(toOfficerAdmin));
 }
@@ -1023,19 +1081,60 @@ async function updateAdminMenuPermissions(req, res) {
 // GET /admin/officer-status-overview
 // एक ही जगह — कितने officers उपलब्ध/छुट्टी/अन्य ड्यूटी/ज़िले से बाहर हैं (live, icon के साथ दिखाने के लिए)
 async function getOfficerStatusOverview(req, res) {
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const queryDistrict = req.query.district ? String(req.query.district).trim() : null;
+  const queryStation = req.query.station ? String(req.query.station).trim() : null;
+
   let districtFilter = '';
   let params = [];
-  // 🐛 बग फ़िक्स: rangeDistricts (IG/DIG) की जांच छूट गई थी
+
   if (req.adminScope?.rangeDistricts && req.adminScope.rangeDistricts.length > 0) {
-    params = [req.adminScope.rangeDistricts];
-    districtFilter = ' AND district = ANY($1)';
+    const allowed = req.adminScope.rangeDistricts.map(norm);
+    if (queryDistrict) {
+      if (!allowed.includes(norm(queryDistrict))) {
+        return res.status(403).json({ error: 'यह ज़िला आपके Range (परिक्षेत्र) में नहीं है' });
+      }
+      params = [norm(queryDistrict)];
+      districtFilter = ' AND TRIM(LOWER(district)) = $1';
+    } else {
+      params = [allowed];
+      districtFilter = ' AND TRIM(LOWER(district)) = ANY($1)';
+    }
   } else if (req.adminScope?.circleStations && req.adminScope.circleStations.length > 0) {
-    // 🐛 बग फ़िक्स: थाने का नाम अकेले अद्वितीय नहीं ("कोतवाली" 65 ज़िलों में) — ज़िला भी जोड़ें
-    params = [req.adminScope.circleStations, req.adminScope.district || null];
-    districtFilter = ' AND station = ANY($1) AND ($2::text IS NULL OR TRIM(LOWER(district)) = TRIM(LOWER($2)))';
+    const allowedStations = req.adminScope.circleStations.map(norm);
+    const scopeDistrict = req.adminScope.district ? norm(req.adminScope.district) : null;
+    if (queryDistrict && scopeDistrict && norm(queryDistrict) !== scopeDistrict) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के अधिकारी देख सकते हैं` });
+    }
+    if (queryStation) {
+      if (!allowedStations.includes(norm(queryStation))) {
+        return res.status(403).json({ error: 'यह थाना आपके सर्किल में नहीं है' });
+      }
+      params = [norm(queryStation), scopeDistrict];
+      districtFilter = ' AND TRIM(LOWER(station)) = $1 AND ($2::text IS NULL OR TRIM(LOWER(district)) = $2)';
+    } else {
+      params = [allowedStations, scopeDistrict];
+      districtFilter = ' AND TRIM(LOWER(station)) = ANY($1) AND ($2::text IS NULL OR TRIM(LOWER(district)) = $2)';
+    }
   } else if (req.adminScope?.district) {
-    params = [req.adminScope.district];
-    districtFilter = ' AND district = $1';
+    const scopeDistrict = norm(req.adminScope.district);
+    if (queryDistrict && norm(queryDistrict) !== scopeDistrict) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के अधिकारी देख सकते हैं` });
+    }
+    params = [scopeDistrict];
+    districtFilter = ' AND TRIM(LOWER(district)) = $1';
+  } else if (req.user?.adminRole === 'super_admin') {
+    // Super Admin
+    if (queryDistrict) {
+      params.push(norm(queryDistrict));
+      districtFilter += ` AND TRIM(LOWER(district)) = $${params.length}`;
+    }
+    if (queryStation) {
+      params.push(norm(queryStation));
+      districtFilter += ` AND TRIM(LOWER(station)) = $${params.length}`;
+    }
+  } else {
+    return res.status(403).json({ error: 'अमान्य अधिकार क्षेत्र — आपके खाते के लिए कोई वैध ज़िला या क्षेत्र निर्धारित नहीं है' });
   }
 
   const result = await db.query(
@@ -1092,6 +1191,7 @@ module.exports = {
   createSHOByDSP,
   listDeletionRequests,
   reviewDeletionRequest,
+  isOfficerInScope,
 };
 
 // ============================================================

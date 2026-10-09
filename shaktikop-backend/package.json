@@ -15,7 +15,8 @@
     "db:seed": "node -e \"const db = require('./src/config/db'); const fs = require('fs'); const sql = fs.readFileSync('src/db/seed.sql','utf8'); db.query(sql).then(() => { console.log('Seed applied successfully'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); });\"",
     "db:encrypt-fields": "node src/scripts/encryptExistingFields.js",
     "db:geocode-stations": "node src/scripts/geocodePoliceStations.js",
-    "audit:verify": "node src/scripts/verifyAuditLog.js"
+    "audit:verify": "node src/scripts/verifyAuditLog.js",
+    "admin:bootstrap": "node src/scripts/bootstrapSuperAdmin.js"
   },
   "engines": {
     "node": ">=20.0.0"
