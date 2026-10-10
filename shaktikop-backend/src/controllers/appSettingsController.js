@@ -19,7 +19,10 @@ const DEFAULTS = {
   },
   rate_limit: { windowMinutes: 15, maxRequests: 300 },
   rank_permissions: {
+    Constable: { canReject: false, canTransfer: false },
+    'Head Constable': { canReject: false, canTransfer: false },
     SI: { canReject: true, canTransfer: false },
+    Inspector: { canReject: true, canTransfer: true },
     SHO: { canReject: true, canTransfer: true },
   },
   escalation_rules: {
@@ -73,8 +76,11 @@ async function refreshCache() {
 }
 
 // तुरंत एक बार लोड करें, फिर हर 60 सेकंड में ताज़ा होता रहे
-refreshCache();
-setInterval(refreshCache, 60000);
+if (process.env.NODE_ENV !== 'test') {
+  refreshCache();
+}
+const cacheInterval = setInterval(refreshCache, 60000);
+if (cacheInterval.unref) cacheInterval.unref();
 
 // किसी भी दूसरे controller से इस्तेमाल के लिए — बिना DB query किए तुरंत मिलता है
 function getCachedSetting(key) {

@@ -13,6 +13,7 @@ router.get('/welfare-items', asyncHandler(listPublicWelfare));
 router.get('/helpline-items', asyncHandler(listPublicHelplines));
 router.get('/public-stats', asyncHandler(getPublicStats));
 router.get('/location-data', asyncHandler(getLocationData));
+router.get('/content/location-data', asyncHandler(getLocationData));
 router.get('/app-settings', asyncHandler(getPublicSettings));
 router.get('/categories', asyncHandler(getPublicCategories));
 router.get('/faq', asyncHandler(getPublicFaq));

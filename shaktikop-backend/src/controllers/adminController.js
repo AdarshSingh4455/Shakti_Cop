@@ -37,6 +37,7 @@ function toOfficerAdmin(o) {
     id: o.id,
     name: o.name,
     badgeId: o.badge_id,
+    username: o.badge_id,
     mobile: o.mobile,
     email: o.email,
     station: o.station,
@@ -239,11 +240,15 @@ async function createSHOByDSP(req, res) {
   }
 }
 
-// POST /admin/officers   body: { name, badgeId, mobile, password, station, district, rank, designation }
+// POST /admin/officers   body: { name, badgeId, username, mobile, password, station, district, rank, designation }
 async function createOfficer(req, res) {
-  const { name, badgeId, mobile, email, password, station, district, rank, designation } = req.body;
-  if (!name || !badgeId || !password) {
-    return res.status(400).json({ error: 'नाम, पुलिस आईडी और पासवर्ड आवश्यक हैं' });
+  const { name, badgeId, username, mobile, email, password, station, district, rank, designation } = req.body;
+  const finalBadgeId = (username || badgeId || '').trim();
+  if (!name || !finalBadgeId || !password) {
+    return res.status(400).json({ error: 'नाम, यूज़रनेम / पुलिस आईडी और पासवर्ड आवश्यक हैं' });
+  }
+  if (finalBadgeId.toLowerCase() === 'admin' || finalBadgeId.toLowerCase() === 'superadmin') {
+    return res.status(400).json({ error: 'यह यूज़रनेम आरक्षित है, कृपया दूसरा यूज़रनेम चुनें' });
   }
   const norm = (s) => String(s || '').trim().toLowerCase();
   let finalDistrict = district ? String(district).trim() : null;
@@ -278,8 +283,9 @@ async function createOfficer(req, res) {
   if (pwErr_bulk) {
     return res.status(400).json({ error: pwErr_bulk });
   }
-  if (rank && !['SI', 'SHO'].includes(rank)) {
-    return res.status(400).json({ error: 'रैंक "SI" या "SHO" होना चाहिए' });
+  const VALID_RANKS = ['Constable', 'Head Constable', 'SI', 'Inspector', 'SHO'];
+  if (rank && !VALID_RANKS.includes(rank)) {
+    return res.status(400).json({ error: 'रैंक "Constable", "Head Constable", "SI", "Inspector" या "SHO" होना चाहिए' });
   }
   // ⚠️ SHO का लॉगिन ईमेल/मोबाइल से होता है — इसलिए SHO के लिए दोनों अनिवार्य हैं
   if (rank === 'SHO') {
@@ -297,19 +303,22 @@ async function createOfficer(req, res) {
   }
   const passwordHash = await bcrypt.hash(password, 12);
   const { getCachedSetting } = require('./appSettingsController');
-  const rankPermissions = getCachedSetting('rank_permissions');
-  const defaultPermissions = rankPermissions[rank || 'SI'] || { canReject: true, canTransfer: false };
+  const rankPermissions = getCachedSetting('rank_permissions') || {};
+  const defaultPermissions = rankPermissions[rank || 'SI'] || {
+    canReject: ['SI', 'Inspector', 'SHO'].includes(rank || 'SI'),
+    canTransfer: ['Inspector', 'SHO'].includes(rank || 'SI'),
+  };
 
   const dupChecks = [];
-  if (badgeId) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE badge_id = $1 AND is_active = true', [badgeId.trim()]));
+  if (finalBadgeId) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE LOWER(TRIM(badge_id)) = LOWER(TRIM($1)) AND is_active = true', [finalBadgeId]));
   if (mobile) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE mobile = $1 AND is_active = true', [mobile.trim()]));
-  if (email) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE email = $1 AND is_active = true', [email.trim()]));
+  if (email) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND is_active = true', [email.trim()]));
   const dupResults = await Promise.all(dupChecks);
   for (const r of dupResults) {
     if (r.rows.length > 0) {
       const ex = r.rows[0];
       return res.status(409).json({
-        error: `यह पुलिस आईडी/मोबाइल/ईमेल पहले से एक सक्रिय अधिकारी (${ex.name}) के पास है — ${ex.station || 'अज्ञात थाना'}, ${ex.district || 'अज्ञात ज़िला'} में। नई ID बनाने से पहले वहां जाकर पुरानी ID निष्क्रिय करवाएं।`,
+        error: `यह यूज़रनेम/पुलिस आईडी/मोबाइल/ईमेल पहले से एक सक्रिय अधिकारी (${ex.name}) के पास है — ${ex.station || 'अज्ञात थाना'}, ${ex.district || 'अज्ञात ज़िला'} में। नई ID बनाने से पहले वहां जाकर पुरानी ID निष्क्रिय करवाएं।`,
         existingOfficer: { name: ex.name, station: ex.station, district: ex.district },
       });
     }
@@ -318,9 +327,9 @@ async function createOfficer(req, res) {
     const result = await db.query(
       `INSERT INTO officers (name, badge_id, mobile, email, password_hash, station, district, rank, designation, created_by_id, permissions)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [name.trim(), badgeId.trim(), mobile ? mobile.trim() : null, email ? email.trim() : null, passwordHash, cleanStation, finalDistrict, rank || 'SI', designation ? designation.trim() : null, req.user.id, JSON.stringify(defaultPermissions)]
+      [name.trim(), finalBadgeId, mobile ? mobile.trim() : null, email ? email.trim() : null, passwordHash, cleanStation, finalDistrict, rank || 'SI', designation ? designation.trim() : null, req.user.id, JSON.stringify(defaultPermissions)]
     );
-    logActivity({ actorRole: 'admin', actorId: req.user.id, actorName: req.user.name, action: 'officer_created', details: `नया अधिकारी जोड़ा: ${name} (${badgeId}, ${rank || 'SI'}) — ${cleanStation || 'अज्ञात थाना'}, ${finalDistrict}`, req });
+    logActivity({ actorRole: 'admin', actorId: req.user.id, actorName: req.user.name, action: 'officer_created', details: `नया अधिकारी जोड़ा: ${name} (${finalBadgeId}, ${rank || 'SI'}) — ${cleanStation || 'अज्ञात थाना'}, ${finalDistrict}`, req });
     res.status(201).json(toOfficerAdmin(result.rows[0]));
   } catch (err) {
     if (err.code === '23505') {
@@ -338,9 +347,9 @@ async function createOfficer(req, res) {
 // कोई भी admin, किसी भी दूसरे ज़िले/सर्किल के अधिकारी की रैंक बदल सकता था।
 async function updateOfficerRank(req, res) {
   const { id } = req.params;
-  const { rank } = req.body;
-  if (!['SI', 'SHO'].includes(rank)) {
-    return res.status(400).json({ error: 'रैंक "SI" या "SHO" होना चाहिए' });
+  const VALID_RANKS = ['Constable', 'Head Constable', 'SI', 'Inspector', 'SHO'];
+  if (!VALID_RANKS.includes(rank)) {
+    return res.status(400).json({ error: 'रैंक "Constable", "Head Constable", "SI", "Inspector" या "SHO" होना चाहिए' });
   }
   const existing = await db.query('SELECT * FROM officers WHERE id = $1', [id]);
   if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
@@ -416,7 +425,7 @@ async function bulkImportOfficers(req, res) {
         continue;
       }
       const passwordHash = await bcrypt.hash(String(o.password), 12);
-      const rank = ['SI', 'SHO'].includes(o.rank) ? o.rank : 'SI';
+      const rank = ['Constable', 'Head Constable', 'SI', 'Inspector', 'SHO'].includes(o.rank) ? o.rank : 'SI';
       const result = await db.query(
         `INSERT INTO officers (name, badge_id, mobile, password_hash, station, district, rank)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name, badge_id`,
@@ -432,10 +441,10 @@ async function bulkImportOfficers(req, res) {
   res.json(results);
 }
 
-// PATCH /admin/officers/:id   body: { name, mobile, email, rank, designation, station, district, permissions }
+// PATCH /admin/officers/:id   body: { name, mobile, email, rank, designation, station, district, permissions, password }
 async function updateOfficer(req, res) {
   const { id } = req.params;
-  const { name, mobile, email, rank, designation, station, district, permissions } = req.body;
+  const { name, mobile, email, rank, designation, station, district, permissions, password } = req.body;
   const norm = (s) => String(s || '').trim().toLowerCase();
 
   const existing = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
@@ -500,13 +509,21 @@ async function updateOfficer(req, res) {
     }
   }
   if (rank !== undefined) {
-    if (!['SI', 'SHO'].includes(rank)) {
-      return res.status(400).json({ error: 'रैंक "SI" या "SHO" होना चाहिए' });
+    const VALID_RANKS = ['Constable', 'Head Constable', 'SI', 'Inspector', 'SHO'];
+    if (!VALID_RANKS.includes(rank)) {
+      return res.status(400).json({ error: 'रैंक "Constable", "Head Constable", "SI", "Inspector" या "SHO" होना चाहिए' });
     }
   }
   if (permissions !== undefined) {
     const permDepthErr = validateJsonDepth(permissions, { label: 'permissions' });
     if (permDepthErr) return res.status(400).json({ error: permDepthErr });
+  }
+
+  let newPasswordHash = null;
+  if (password !== undefined && password) {
+    const pwErr = validateNewPassword(password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
+    newPasswordHash = await bcrypt.hash(password, 12);
   }
 
   const finalName = name !== undefined ? name.trim() : old.name;
@@ -519,9 +536,11 @@ async function updateOfficer(req, res) {
   const result = await db.query(
     `UPDATE officers
      SET name = $1, mobile = $2, email = $3, rank = $4, designation = $5,
-         station = $6, district = $7, permissions = $8, updated_at = now()
-     WHERE id = $9 RETURNING *`,
-    [finalName, finalMobile, finalEmail, finalRank, finalDesignation, finalStation, finalDistrict, finalPerms, id]
+         station = $6, district = $7, permissions = $8,
+         password_hash = COALESCE($9, password_hash),
+         updated_at = now()
+     WHERE id = $10 RETURNING *`,
+    [finalName, finalMobile, finalEmail, finalRank, finalDesignation, finalStation, finalDistrict, finalPerms, newPasswordHash, id]
   );
 
   logActivity({
@@ -561,10 +580,31 @@ async function updateOfficerPermissions(req, res) {
   }
   const permDepthErr = validateJsonDepth(permissions, { label: 'permissions' });
   if (permDepthErr) return res.status(400).json({ error: permDepthErr });
+
+  // 🔒 Privilege Escalation Prevention:
+  // केवल अनुमत अधिकारी-स्तरीय अनुमतियां ही स्वीकार की जाती हैं (उदा. canReject, canTransfer, canAssignOfficer, canCloseComplaint)
+  // कोई भी व्यवस्थापक Super Admin या राज्य-स्तरीय आरक्षित अनुमतियां नहीं दे सकता
+  if (permissions && typeof permissions === 'object') {
+    const DISALLOWED_KEYS = ['super_admin', 'isSuperAdmin', 'allDistricts', 'manageAdmins', 'statewide', 'isDistrictAdmin', 'adminRole'];
+    for (const key of Object.keys(permissions)) {
+      if (DISALLOWED_KEYS.includes(key) && permissions[key]) {
+        return res.status(403).json({ error: `अधिकारी को '${key}' अनुमति नहीं दी जा सकती — यह प्रणाली स्तर पर आरक्षित है` });
+      }
+    }
+  }
+
   const result = await db.query(
     'UPDATE officers SET permissions = $1 WHERE id = $2 RETURNING *',
     [JSON.stringify(permissions || {}), id]
   );
+  logActivity({
+    actorRole: 'admin',
+    actorId: req.user.id,
+    actorName: req.user.name,
+    action: 'officer_permissions_updated',
+    details: `अधिकारी ${result.rows[0].name} (${result.rows[0].badge_id}) की अनुमतियां बदली गईं`,
+    req,
+  });
   res.json(toOfficerAdmin(result.rows[0]));
 }
 
@@ -913,11 +953,29 @@ async function listActivityLogs(req, res) {
 
 // GET /admin/admins   (super_admin only)
 async function listAdmins(req, res) {
-  // 🐛 बग फ़िक्स: is_active यहां select ही नहीं होता था, जबकि नीचे response में
-  // isActive: a.is_active इस्तेमाल होता है — मतलब हर admin के लिए यह हमेशा
-  // undefined जाता, सक्रिय/निष्क्रिय की पहचान मोबाइल पर सही से नहीं हो पाती।
-  // 🆕 range_districts भी जोड़ा — IG/DIG के Range दिखाने के लिए।
-  const result = await db.query('SELECT id, name, username, mobile, email, admin_role, district, rank, circle_stations, range_districts, menu_permissions, is_active, created_at FROM admins ORDER BY created_at DESC');
+  const { role, district, excludeSuperAdmin } = req.query;
+  const clauses = [];
+  const params = [];
+  const norm = (s) => String(s || '').trim().toLowerCase();
+
+  if (role) {
+    params.push(role);
+    clauses.push(`admin_role = $${params.length}`);
+  }
+  if (excludeSuperAdmin === 'true' || excludeSuperAdmin === true) {
+    clauses.push(`admin_role != 'super_admin'`);
+  }
+  if (district) {
+    params.push(norm(district));
+    clauses.push(`TRIM(LOWER(district)) = $${params.length}`);
+  }
+
+  const whereSql = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const result = await db.query(
+    `SELECT id, name, username, mobile, email, admin_role, district, rank, circle_stations, range_districts, menu_permissions, is_active, created_at
+     FROM admins ${whereSql} ORDER BY created_at DESC`,
+    params
+  );
   res.json(
     result.rows.map((a) => ({
       id: a.id,
@@ -970,6 +1028,28 @@ async function createDistrictAdmin(req, res) {
   if (mobileErr) return res.status(400).json({ error: mobileErr });
   const emailErr = validateEmail(email);
   if (emailErr) return res.status(400).json({ error: emailErr });
+
+  if (username) {
+    const cleanU = String(username).trim();
+    if (cleanU.toLowerCase() === 'admin' || cleanU.toLowerCase() === 'superadmin') {
+      return res.status(400).json({ error: 'यह यूज़रनेम आरक्षित है, कृपया दूसरा यूज़रनेम चुनें' });
+    }
+    const dupU = await db.query(
+      'SELECT id FROM admins WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND is_active = true',
+      [cleanU]
+    );
+    if (dupU.rows.length > 0) {
+      return res.status(409).json({ error: 'यह यूज़रनेम पहले से किसी व्यवस्थापक खाते में मौजूद है' });
+    }
+  }
+
+  const dupAdmin = await db.query(
+    'SELECT id, name FROM admins WHERE (LOWER(TRIM(email)) = LOWER(TRIM($1)) OR mobile = $2) AND is_active = true',
+    [email.trim(), mobile.trim()]
+  );
+  if (dupAdmin.rows.length > 0) {
+    return res.status(409).json({ error: 'यह ईमेल या मोबाइल नंबर पहले से किसी सक्रिय व्यवस्थापक खाते में मौजूद है' });
+  }
   if (role === 'district_admin') {
     if (!district) {
       return res.status(400).json({ error: 'district_admin के लिए ज़िला आवश्यक है' });
@@ -983,6 +1063,20 @@ async function createDistrictAdmin(req, res) {
       if (validD.rows.length === 0) {
         return res.status(400).json({ error: `ज़िला "${district}" मान्य नहीं है` });
       }
+    }
+
+    // 🔒 एकल मुख्य ज़िला व्यवस्थापक नियम (Single Primary District Admin per District):
+    // प्रत्येक जिले में केवल एक ही मुख्य District Admin सक्रिय रह सकता है
+    const existingDistrictAdmin = await db.query(
+      `SELECT id, name, username, email FROM admins WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) AND admin_role = 'district_admin' AND is_active = true`,
+      [district.trim()]
+    );
+    if (existingDistrictAdmin.rows.length > 0) {
+      const ex = existingDistrictAdmin.rows[0];
+      return res.status(409).json({
+        error: `ज़िला "${district.trim()}" के लिए पहले से एक मुख्य ज़िला व्यवस्थापक (${ex.name}) सक्रिय है। एक ज़िले में केवल एक ही मुख्य व्यवस्थापक हो सकता है।`,
+        existingAdmin: { id: ex.id, name: ex.name, email: ex.email },
+      });
     }
   }
   if (role === 'monitor' && !['DSP', 'ASP', 'SSP', 'IG', 'DIG'].includes(rank)) {
@@ -1091,7 +1185,13 @@ async function createDistrictAdmin(req, res) {
 async function deleteAdmin(req, res) {
   const { id } = req.params;
   if (id === req.user.id) return res.status(400).json({ error: 'खुद को हटाया नहीं जा सकता' });
+  const existing = await db.query('SELECT * FROM admins WHERE id = $1', [id]);
+  if (existing.rows.length === 0) return res.status(404).json({ error: 'व्यवस्थापक खाता नहीं मिला' });
+  if (existing.rows[0].admin_role === 'super_admin') {
+    return res.status(403).json({ error: 'Global Super Admin खाते को हटाया नहीं जा सकता' });
+  }
   await db.query(`DELETE FROM admins WHERE id = $1 AND admin_role != 'super_admin'`, [id]);
+  logActivity({ actorRole: 'admin', actorId: req.user.id, actorName: req.user.name, action: 'admin_deleted', details: `व्यवस्थापक खाता हटाया: ${existing.rows[0].name} (${existing.rows[0].email || existing.rows[0].mobile}) — ${existing.rows[0].district || 'समस्त राज्य'}`, req });
   res.json({ message: 'हटा दिया गया' });
 }
 
@@ -1138,6 +1238,19 @@ async function updateDistrictAdmin(req, res) {
       }
     }
     finalDistrict = district.trim();
+
+    // 🔒 यदि ज़िला बदला जा रहा है और यह district_admin है, तो सुनिश्चित करें कि नए ज़िले में पहले से कोई सक्रिय district_admin न हो
+    if (target.admin_role === 'district_admin' && (!target.district || target.district.trim().toLowerCase() !== finalDistrict.toLowerCase())) {
+      const existingDistrictAdmin = await db.query(
+        `SELECT id, name FROM admins WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) AND admin_role = 'district_admin' AND is_active = true AND id != $2`,
+        [finalDistrict, id]
+      );
+      if (existingDistrictAdmin.rows.length > 0) {
+        return res.status(409).json({
+          error: `ज़िला "${finalDistrict}" के लिए पहले से एक मुख्य ज़िला व्यवस्थापक (${existingDistrictAdmin.rows[0].name}) सक्रिय है।`,
+        });
+      }
+    }
   }
 
   const finalName = name !== undefined ? name.trim() : target.name;
@@ -1220,6 +1333,19 @@ async function transferAdmin(req, res) {
   if (!old.is_active) return res.status(400).json({ error: 'यह खाता पहले से निष्क्रिय है' });
   if (!isAdminInScope(req, old)) {
     return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले के DSP/ASP खाते को ट्रांसफ़र कर सकते हैं' });
+  }
+
+  // 🔒 यदि district_admin ट्रांसफ़र हो रहा है, तो जांचें कि नए ज़िले में पहले से कोई सक्रिय district_admin न हो
+  if (old.admin_role === 'district_admin' && district) {
+    const existingDistrictAdmin = await db.query(
+      `SELECT id, name FROM admins WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) AND admin_role = 'district_admin' AND is_active = true AND id != $2`,
+      [district.trim(), id]
+    );
+    if (existingDistrictAdmin.rows.length > 0) {
+      return res.status(409).json({
+        error: `नए ज़िले "${district.trim()}" के लिए पहले से एक मुख्य ज़िला व्यवस्थापक (${existingDistrictAdmin.rows[0].name}) सक्रिय है।`,
+      });
+    }
   }
 
   // 🆕 IG/DIG के लिए एक अकेला ज़िला नहीं, पूरा Range (कई ज़िले) चाहिए — बाक़ी रैंकों

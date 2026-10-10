@@ -53,10 +53,10 @@ INSERT INTO police_stations (district, station, district_en, station_en) VALUES
       ('गाज़ियाबाद', 'इंदिरापुरम', 'Ghaziabad', 'Indirapuram'),
       ('गाज़ियाबाद', 'साहिबाबाद', 'Ghaziabad', 'Sahibabad'),
       ('गाज़ियाबाद', 'विजयनगर', 'Ghaziabad', NULL),
-      ('नोएडा (गौतम बुद्ध नगर)', 'सेक्टर 20', 'Noida (Gautam Buddha Nagar)', NULL),
-      ('नोएडा (गौतम बुद्ध नगर)', 'सेक्टर 39', 'Noida (Gautam Buddha Nagar)', NULL),
-      ('नोएडा (गौतम बुद्ध नगर)', 'फेज़ 3', 'Noida (Gautam Buddha Nagar)', NULL),
-      ('नोएडा (गौतम बुद्ध नगर)', 'बिसरख', 'Noida (Gautam Buddha Nagar)', 'Bisrakh'),
+      ('गौतम बुद्ध नगर', 'नोएडा सेक्टर-20', 'Gautam Buddha Nagar', 'Noida Sector-20'),
+      ('गौतम बुद्ध नगर', 'नोएडा सेक्टर-39', 'Gautam Buddha Nagar', 'Noida Sector-39'),
+      ('गौतम बुद्ध नगर', 'फेज़-3', 'Gautam Buddha Nagar', 'Phase-3'),
+      ('गौतम बुद्ध नगर', 'बिसरख', 'Gautam Buddha Nagar', 'Bisrakh'),
       ('बरेली', 'कोतवाली', 'Bareilly', 'Kotwali'),
       ('बरेली', 'बारादरी', 'Bareilly', 'Baradari'),
       ('बरेली', 'प्रेमनगर', 'Bareilly', NULL),
@@ -157,7 +157,7 @@ UPDATE police_stations SET district_en = 'Jalaun' WHERE district = 'जालौ
 UPDATE police_stations SET district_en = 'Jaunpur' WHERE district = 'जौनपुर' AND district_en IS NULL;
 UPDATE police_stations SET district_en = 'Jhansi' WHERE district = 'झांसी' AND district_en IS NULL;
 UPDATE police_stations SET district_en = 'Deoria' WHERE district = 'देवरिया' AND district_en IS NULL;
-UPDATE police_stations SET district_en = 'Noida (Gautam Buddha Nagar)' WHERE district = 'नोएडा (गौतम बुद्ध नगर)' AND district_en IS NULL;
+UPDATE police_stations SET district_en = 'Gautam Buddha Nagar' WHERE district = 'गौतम बुद्ध नगर' AND district_en IS NULL;
 UPDATE police_stations SET district_en = 'Pilibhit' WHERE district = 'पीलीभीत' AND district_en IS NULL;
 UPDATE police_stations SET district_en = 'Pratapgarh' WHERE district = 'प्रतापगढ़' AND district_en IS NULL;
 UPDATE police_stations SET district_en = 'Prayagraj' WHERE district = 'प्रयागराज' AND district_en IS NULL;

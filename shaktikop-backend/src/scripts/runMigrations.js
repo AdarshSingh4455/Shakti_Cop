@@ -66,7 +66,9 @@ const MIGRATION_PIPELINE = [
   { name: 'fix_admins.sql', description: 'Correct admin ranks and district boundaries' },
 
   { name: 'monitor_analytics_menu.sql', description: 'Grant analytics & leaderboard menu access to DSP/ASP/SSP' },
-  { name: 'scale_indexes.sql', description: '10 state-scale concurrent indexes for sub-second queries' }
+  { name: 'scale_indexes.sql', description: '10 state-scale concurrent indexes for sub-second queries' },
+  { name: 'consolidate_gautam_buddha_nagar.sql', description: 'Consolidate Noida into Gautam Buddha Nagar (75 Canonical UP Districts)' },
+  { name: 'single_district_admin_constraint.sql', description: 'Enforce single active primary District Admin per district' },
 ];
 
 // Parse arguments

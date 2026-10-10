@@ -533,26 +533,27 @@ async function staffVerifyOtp(req, res) {
   res.status(404).json({ error: 'स्टाफ़ खाता नहीं मिला' });
 }
 
-// POST /auth/officer/login   body: { badgeId, password }   (वैकल्पिक — password-आधारित फ़ॉलबैक)
+// POST /auth/officer/login   body: { badgeId, username, password }   (password-आधारित लॉगिन)
 async function officerLogin(req, res) {
-  const { badgeId, password } = req.body;
-  if (!badgeId || !password) {
-    return res.status(400).json({ error: 'पुलिस आईडी और पासवर्ड आवश्यक हैं' });
+  const identifier = (req.body.username || req.body.badgeId || req.body.identifier || '').trim();
+  const { password } = req.body;
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'यूज़रनेम / पुलिस आईडी और पासवर्ड आवश्यक हैं' });
   }
-  const result = await db.query('SELECT * FROM officers WHERE LOWER(TRIM(badge_id)) = LOWER(TRIM($1)) AND is_active = true', [badgeId]);
+  const result = await db.query('SELECT * FROM officers WHERE LOWER(TRIM(badge_id)) = LOWER(TRIM($1)) AND is_active = true', [identifier]);
   const officer = result.rows[0];
-  if (isBlockedDemoPassword(password, badgeId)) return res.status(403).json(DEMO_PASSWORD_ERROR);
+  if (isBlockedDemoPassword(password, identifier)) return res.status(403).json(DEMO_PASSWORD_ERROR);
   if (!(await timingSafeVerify(password, officer?.password_hash))) {
-    logActivity({ actorRole: 'officer', actorId: officer?.id || null, actorName: badgeId, action: 'login_failed', details: 'ग़लत पासवर्ड (अधिकारी badge)', req });
-    return res.status(401).json({ error: 'पुलिस आईडी या पासवर्ड गलत है' });
+    logActivity({ actorRole: 'officer', actorId: officer?.id || null, actorName: identifier, action: 'login_failed', details: 'ग़लत पासवर्ड (अधिकारी badge)', req });
+    return res.status(401).json({ error: 'यूज़रनेम / पुलिस आईडी या पासवर्ड गलत है' });
   }
-  const token = signToken({ id: officer.id, role: 'officer', name: officer.name, badgeId: officer.badge_id, rank: officer.rank, district: officer.district, station: officer.station });
+  const token = signToken({ id: officer.id, role: 'officer', name: officer.name, badgeId: officer.badge_id, username: officer.badge_id, rank: officer.rank, district: officer.district, station: officer.station });
   const refreshToken = await createRefreshToken(officer.id, 'officer', req.body.deviceName);
   logActivity({ actorRole: 'officer', actorId: officer.id, actorName: officer.name, action: 'login', details: 'पासवर्ड से लॉगिन (badge)', req });
   res.json({
     token,
     refreshToken,
-    user: { id: officer.id, name: officer.name, badgeId: officer.badge_id, station: officer.station, district: officer.district, rank: officer.rank, designation: officer.designation, notificationPreferences: officer.notification_preferences, photoUrl: officer.photo_url, role: 'officer' },
+    user: { id: officer.id, name: officer.name, badgeId: officer.badge_id, username: officer.badge_id, station: officer.station, district: officer.district, rank: officer.rank, designation: officer.designation, notificationPreferences: officer.notification_preferences, photoUrl: officer.photo_url, role: 'officer' },
   });
 }
 
@@ -596,7 +597,7 @@ async function buildFreshTokenPayload(userId, role) {
     const o = r.rows[0];
     return {
       payload: { id: o.id, role: 'officer', name: o.name, badgeId: o.badge_id, rank: o.rank, district: o.district, station: o.station },
-      user: { id: o.id, name: o.name, badgeId: o.badge_id, mobile: o.mobile, email: o.email, station: o.station, district: o.district, dutyStatus: o.duty_status, permissions: o.permissions, rank: o.rank, designation: o.designation, notificationPreferences: o.notification_preferences, photoUrl: o.photo_url, role: 'officer' },
+      user: { id: o.id, name: o.name, badgeId: o.badge_id, username: o.badge_id, mobile: o.mobile, email: o.email, station: o.station, district: o.district, dutyStatus: o.duty_status, permissions: o.permissions, rank: o.rank, designation: o.designation, notificationPreferences: o.notification_preferences, photoUrl: o.photo_url, role: 'officer' },
     };
   }
   if (role === 'admin') {

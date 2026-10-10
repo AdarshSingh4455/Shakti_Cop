@@ -22,6 +22,8 @@ const {
   transferOfficer,
   createDistrictAdmin,
   updateDistrictAdmin,
+  deleteAdmin,
+  updateOfficerPermissions,
 } = require('../src/controllers/adminController');
 
 function fakeRes() {
@@ -432,4 +434,156 @@ test('Safe Officer Removal — soft-deletes officer, sets deleted_at and preserv
   assert.equal(res.statusCode, 200);
   assert.equal(softDeleted, true, 'Officer record must be safely soft-deleted with deleted_at set');
   assert.match(res.body.message, /सुरक्षित रूप से हटा/);
+});
+
+// ------------------------------------------------------------
+// 6. Single District Admin Constraint & Privilege Escalation Prevention
+// ------------------------------------------------------------
+test('Single District Admin Constraint — createDistrictAdmin rejects duplicate active district_admin with 409', async (t) => {
+  t.mock.method(db, 'query', async (sql, params) => {
+    if (sql.includes('SELECT 1 FROM police_stations WHERE')) {
+      return { rows: [{ '?column?': 1 }] }; // valid district
+    }
+    if (sql.includes('FROM admins') && sql.includes("admin_role = 'district_admin'") && sql.includes('is_active = true')) {
+      // An active district_admin already exists for this district
+      return {
+        rows: [{ id: 'adm-existing', name: 'मौजूदा व्यवस्थापक', email: 'existing@uppolice.gov.in' }],
+      };
+    }
+    return { rows: [] };
+  });
+
+  const req = {
+    user: { id: 'super-1', adminRole: 'super_admin' },
+    body: {
+      name: 'नया व्यवस्थापक',
+      email: 'new@uppolice.gov.in',
+      mobile: '9876543211',
+      password: 'SecurePassword123!',
+      district: 'लखनऊ',
+    },
+  };
+  const res = fakeRes();
+  await createDistrictAdmin(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.error, /पहले से एक मुख्य ज़िला व्यवस्थापक/);
+  assert.equal(res.body.existingAdmin.id, 'adm-existing');
+});
+
+test('Single District Admin Constraint — updateDistrictAdmin rejects reassigning to occupied district with 409', async (t) => {
+  t.mock.method(db, 'query', async (sql, params) => {
+    if (sql.includes('SELECT * FROM admins WHERE id = $1')) {
+      return {
+        rows: [{ id: 'adm-10', name: 'सुरेश यादव', admin_role: 'district_admin', district: 'वाराणसी' }],
+      };
+    }
+    if (sql.includes('SELECT 1 FROM police_stations WHERE')) {
+      return { rows: [{ '?column?': 1 }] }; // valid district
+    }
+    if (sql.includes('FROM admins') && sql.includes("admin_role = 'district_admin'") && sql.includes('id != $2')) {
+      // Lucknow is already occupied by another admin
+      return {
+        rows: [{ id: 'adm-lko', name: 'लखनऊ मुख्य व्यवस्थापक', email: 'lko@uppolice.gov.in' }],
+      };
+    }
+    return { rows: [] };
+  });
+
+  const req = {
+    user: { id: 'super-1', adminRole: 'super_admin' },
+    params: { id: 'adm-10' },
+    body: { district: 'लखनऊ' },
+  };
+  const res = fakeRes();
+  await updateDistrictAdmin(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.error, /पहले से एक मुख्य ज़िला व्यवस्थापक/);
+});
+
+test('Super Admin Protection — deleteAdmin rejects deleting Global Super Admin with 403', async (t) => {
+  t.mock.method(db, 'query', async (sql, params) => {
+    if (sql.includes('SELECT * FROM admins WHERE id = $1')) {
+      return {
+        rows: [{ id: 'admin-1', name: 'मुख्य व्यवस्थापक', admin_role: 'super_admin', email: 'admin@uppolice.gov.in' }],
+      };
+    }
+    return { rows: [] };
+  });
+
+  const req = {
+    user: { id: 'super-1', adminRole: 'super_admin' },
+    params: { id: 'admin-1' },
+  };
+  const res = fakeRes();
+  await deleteAdmin(req, res);
+
+  assert.equal(res.statusCode, 403);
+  assert.match(res.body.error, /Global Super Admin खाते को हटाया नहीं जा सकता/);
+});
+
+test('Privilege Escalation Prevention — updateOfficerPermissions rejects reserved keys with 403', async (t) => {
+  t.mock.method(db, 'query', async (sql, params) => {
+    if (sql.includes('SELECT * FROM officers WHERE id = $1')) {
+      return {
+        rows: [{ id: 'off-1', name: 'अधिकारी', district: 'लखनऊ', permissions: {} }],
+      };
+    }
+    return { rows: [] };
+  });
+
+  const req = {
+    user: { id: 'adm-lko', adminRole: 'district_admin' },
+    adminScope: { district: 'लखनऊ' },
+    params: { id: 'off-1' },
+    body: {
+      permissions: {
+        canReject: true,
+        super_admin: true, // Attempted privilege escalation
+      },
+    },
+  };
+  const res = fakeRes();
+  await updateOfficerPermissions(req, res);
+
+  assert.equal(res.statusCode, 403);
+  assert.match(res.body.error, /प्रणाली स्तर पर आरक्षित/);
+});
+
+test('Officer Permissions — District Admin can update legitimate permissions within own district', async (t) => {
+  let updatedPerms = null;
+  t.mock.method(db, 'query', async (sql, params) => {
+    if (sql.includes('SELECT * FROM officers WHERE id = $1')) {
+      return {
+        rows: [{ id: 'off-1', name: 'राजेश कुमार', district: 'लखनऊ', permissions: {} }],
+      };
+    }
+    if (sql.includes('UPDATE officers SET permissions = $1')) {
+      updatedPerms = JSON.parse(params[0]);
+      return {
+        rows: [{ id: 'off-1', name: 'राजेश कुमार', district: 'लखनऊ', permissions: updatedPerms }],
+      };
+    }
+    return { rows: [] };
+  });
+
+  const req = {
+    user: { id: 'adm-lko', name: 'लखनऊ व्यवस्थापक', adminRole: 'district_admin' },
+    adminScope: { district: 'लखनऊ' },
+    params: { id: 'off-1' },
+    body: {
+      permissions: {
+        canReject: true,
+        canTransfer: true,
+      },
+    },
+  };
+  const res = fakeRes();
+  await updateOfficerPermissions(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(updatedPerms, { canReject: true, canTransfer: true });
+  assert.deepEqual(res.body.permissions, { canReject: true, canTransfer: true });
+  assert.equal(res.body.name, 'राजेश कुमार');
 });

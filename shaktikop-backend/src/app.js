@@ -347,6 +347,7 @@ app.use('/counselling', counsellingRoutes);
 app.use('/atr', atrRoutes);
 app.use('/admin/backup', backupRoutes);
 app.use('/', contentPublicRoutes); // /welfare-items, /helpline-items
+app.use('/content', contentPublicRoutes); // /content/location-data, /content/app-settings
 app.use('/', officerRoutes); // /officers , /admin/stats
 
 app.use((req, res) => res.status(404).json({ error: 'रूट नहीं मिला' }));
