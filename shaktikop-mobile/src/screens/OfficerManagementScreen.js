@@ -1,14 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { tt } from '../context/LocaleContext';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Switch, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 
 import { SkeletonList } from '../components/LoadingView';
 export default function OfficerManagementScreen({ navigation }) {
-  const { allOfficers, loadAllOfficers, setOfficerActive, removeOfficer } = useApp();
+  const { allOfficers, loadAllOfficers, setOfficerActive, removeOfficer, user, adminProfile } = useApp();
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const currentRole = user?.adminRole || adminProfile?.adminRole;
+  const isDistrictAdmin = currentRole === 'district_admin';
+  const scopedDistrict = user?.district || adminProfile?.district;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,30 +38,66 @@ export default function OfficerManagementScreen({ navigation }) {
   };
 
   const confirmDelete = (officer) => {
-    Alert.alert(tt('अधिकारी हटाएं?'), `${officer.name} को हटाना पक्का करें — यह वापस नहीं हो सकता।`, [
-      { text: tt('रद्द करें'), style: 'cancel' },
-      {
-        text: tt('हटाएं'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeOfficer(officer.id);
-          } catch (e) {
-            Alert.alert(tt('त्रुटि'), e.message);
-          }
+    Alert.alert(
+      tt('अधिकारी हटाएं?'),
+      tt(`${officer.name} (${officer.badgeId}) को सेवा से हटाना पक्का करें? सक्रिय मामले होने पर पहले उन्हें अन्यत्र स्थानांतरित करना होगा। पूर्व इतिहास सुरक्षित रहेगा।`),
+      [
+        { text: tt('रद्द करें'), style: 'cancel' },
+        {
+          text: tt('हटाएं'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeOfficer(officer.id);
+            } catch (e) {
+              Alert.alert(tt('त्रुटि'), e.message);
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
+
+  const filteredOfficers = allOfficers.filter((o) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      (o.name && o.name.toLowerCase().includes(q)) ||
+      (o.badgeId && o.badgeId.toLowerCase().includes(q)) ||
+      (o.station && o.station.toLowerCase().includes(q)) ||
+      (o.district && o.district.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
-        <Text style={styles.title}>{tt('अधिकारी प्रबंधन')} ({allOfficers.length})</Text>
+        <View>
+          <Text style={styles.title}>{tt('अधिकारी प्रबंधन')} ({filteredOfficers.length})</Text>
+          <Text style={styles.scopeText}>
+            {isDistrictAdmin && scopedDistrict ? `📍 ज़िला: ${scopedDistrict}` : '📍 समस्त उत्तर प्रदेश'}
+          </Text>
+        </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('OfficerForm', {})}>
           <Ionicons name="add" size={16} color={colors.white} />
           <Text style={styles.addBtnText}>{tt('नया अधिकारी')}</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.searchBarWrap}>
+        <Ionicons name="search-outline" size={16} color={colors.inkGrey} style={{ marginRight: 8 }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={tt('नाम, PNO, या थाना से खोजें...')}
+          value={search}
+          onChangeText={setSearch}
+          placeholderTextColor={colors.inkLight}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={16} color={colors.inkGrey} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.quickRow}>
@@ -74,7 +115,7 @@ export default function OfficerManagementScreen({ navigation }) {
         <SkeletonList rows={5} />
       ) : (
         <FlatList
-          data={allOfficers}
+          data={filteredOfficers}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
@@ -97,7 +138,7 @@ export default function OfficerManagementScreen({ navigation }) {
               </View>
             </View>
           )}
-          ListEmptyComponent={<Text style={styles.emptyText}>{tt('कोई अधिकारी नहीं जोड़ा गया।')}</Text>}
+          ListEmptyComponent={<Text style={styles.emptyText}>{tt('कोई अधिकारी नहीं मिला।')}</Text>}
         />
       )}
     </View>
@@ -107,6 +148,9 @@ export default function OfficerManagementScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.sand },
   headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 8 },
+  scopeText: { fontSize: 11.5, fontWeight: '600', color: colors.inkGrey, marginTop: 2 },
+  searchBarWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, marginHorizontal: 16, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  searchInput: { flex: 1, fontSize: 13, color: colors.inkNavy, padding: 0 },
   quickRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
   quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 9 },
   quickBtnText: { fontSize: 11.5, fontWeight: '700', color: colors.shaktiMaroon },

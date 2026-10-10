@@ -42,10 +42,13 @@ function toOfficerAdmin(o) {
     station: o.station,
     district: o.district,
     dutyStatus: o.duty_status,
-    permissions: o.permissions,
     rank: o.rank,
+    designation: o.designation,
+    permissions: o.permissions,
     isActive: o.is_active,
+    deletedAt: o.deleted_at || null,
     createdAt: o.created_at,
+    updatedAt: o.updated_at,
   };
 }
 
@@ -53,28 +56,50 @@ function toOfficerAdmin(o) {
 // अधिकारी प्रबंधन (Officer CRUD)
 // ============================================================
 
-// GET /admin/officers   — सभी अधिकारी (active + inactive), प्रबंधन के लिए
+// GET /admin/officers   — अधिकारी सूची (district-scoping, search, status फ़िल्टर सहित)
 async function listAllOfficers(req, res) {
   const norm = (s) => String(s || '').trim().toLowerCase();
   const queryDistrict = req.query.district ? String(req.query.district).trim() : null;
   const queryStation = req.query.station ? String(req.query.station).trim() : null;
+  const search = req.query.search ? String(req.query.search).trim() : null;
+  const status = req.query.status ? String(req.query.status).trim().toLowerCase() : null;
+  const includeDeleted = req.query.includeDeleted === 'true' && req.user?.adminRole === 'super_admin';
 
-  let result;
+  const baseClauses = [];
+  const params = [];
+
+  if (!includeDeleted) {
+    baseClauses.push('deleted_at IS NULL');
+  }
+
+  if (status === 'active') {
+    baseClauses.push('is_active = true');
+  } else if (status === 'inactive') {
+    baseClauses.push('is_active = false');
+  }
+
+  if (search) {
+    params.push(`%${search}%`);
+    const pIdx = params.length;
+    baseClauses.push(`(name ILIKE $${pIdx} OR badge_id ILIKE $${pIdx} OR mobile ILIKE $${pIdx} OR email ILIKE $${pIdx})`);
+  }
+
+  let scopeClauses = [];
   if (req.adminScope?.rangeDistricts && req.adminScope.rangeDistricts.length > 0) {
     const allowed = req.adminScope.rangeDistricts.map(norm);
     if (queryDistrict) {
       if (!allowed.includes(norm(queryDistrict))) {
         return res.status(403).json({ error: 'यह ज़िला आपके Range (परिक्षेत्र) में नहीं है' });
       }
-      result = await db.query(
-        'SELECT * FROM officers WHERE TRIM(LOWER(district)) = $1 ORDER BY created_at DESC',
-        [norm(queryDistrict)]
-      );
+      params.push(norm(queryDistrict));
+      scopeClauses.push(`TRIM(LOWER(district)) = $${params.length}`);
     } else {
-      result = await db.query(
-        'SELECT * FROM officers WHERE TRIM(LOWER(district)) = ANY($1) ORDER BY created_at DESC',
-        [allowed]
-      );
+      params.push(allowed);
+      scopeClauses.push(`TRIM(LOWER(district)) = ANY($${params.length})`);
+    }
+    if (queryStation) {
+      params.push(norm(queryStation));
+      scopeClauses.push(`TRIM(LOWER(station)) = $${params.length}`);
     }
   } else if (req.adminScope?.circleStations && req.adminScope.circleStations.length > 0) {
     const allowedStations = req.adminScope.circleStations.map(norm);
@@ -86,43 +111,58 @@ async function listAllOfficers(req, res) {
       if (!allowedStations.includes(norm(queryStation))) {
         return res.status(403).json({ error: 'यह थाना आपके सर्किल में नहीं है' });
       }
-      result = await db.query(
-        'SELECT * FROM officers WHERE TRIM(LOWER(station)) = $1 AND ($2::text IS NULL OR TRIM(LOWER(district)) = $2) ORDER BY created_at DESC',
-        [norm(queryStation), scopeDistrict]
-      );
+      params.push(norm(queryStation));
+      scopeClauses.push(`TRIM(LOWER(station)) = $${params.length}`);
     } else {
-      result = await db.query(
-        'SELECT * FROM officers WHERE TRIM(LOWER(station)) = ANY($1) AND ($2::text IS NULL OR TRIM(LOWER(district)) = $2) ORDER BY created_at DESC',
-        [allowedStations, scopeDistrict]
-      );
+      params.push(allowedStations);
+      scopeClauses.push(`TRIM(LOWER(station)) = ANY($${params.length})`);
+    }
+    if (scopeDistrict) {
+      params.push(scopeDistrict);
+      scopeClauses.push(`TRIM(LOWER(district)) = $${params.length}`);
     }
   } else if (req.adminScope?.district) {
     const scopeDistrict = norm(req.adminScope.district);
     if (queryDistrict && norm(queryDistrict) !== scopeDistrict) {
       return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के अधिकारी देख सकते हैं` });
     }
-    result = await db.query(
-      'SELECT * FROM officers WHERE TRIM(LOWER(district)) = $1 ORDER BY created_at DESC',
-      [scopeDistrict]
-    );
+    params.push(scopeDistrict);
+    scopeClauses.push(`TRIM(LOWER(district)) = $${params.length}`);
+    if (queryStation) {
+      params.push(norm(queryStation));
+      scopeClauses.push(`TRIM(LOWER(station)) = $${params.length}`);
+    }
   } else if (req.user?.adminRole === 'super_admin') {
-    // Super Admin: unscoped by default, can filter by queryDistrict / queryStation if requested
-    const clauses = [];
-    const params = [];
     if (queryDistrict) {
       params.push(norm(queryDistrict));
-      clauses.push(`TRIM(LOWER(district)) = $${params.length}`);
+      scopeClauses.push(`TRIM(LOWER(district)) = $${params.length}`);
     }
     if (queryStation) {
       params.push(norm(queryStation));
-      clauses.push(`TRIM(LOWER(station)) = $${params.length}`);
+      scopeClauses.push(`TRIM(LOWER(station)) = $${params.length}`);
     }
-    const whereSql = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-    result = await db.query(`SELECT * FROM officers ${whereSql} ORDER BY created_at DESC`, params);
   } else {
     return res.status(403).json({ error: 'अमान्य अधिकार क्षेत्र — आपके खाते के लिए कोई वैध ज़िला या क्षेत्र निर्धारित नहीं है' });
   }
+
+  const allClauses = [...baseClauses, ...scopeClauses];
+  const whereSql = allClauses.length > 0 ? `WHERE ${allClauses.join(' AND ')}` : '';
+  const result = await db.query(`SELECT * FROM officers ${whereSql} ORDER BY created_at DESC`, params);
   res.json(result.rows.map(toOfficerAdmin));
+}
+
+// GET /admin/officers/:id   — एकल अधिकारी का विस्तृत विवरण
+async function getOfficerDetails(req, res) {
+  const { id } = req.params;
+  const result = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
+  }
+  const officer = result.rows[0];
+  if (!isOfficerInScope(req, officer)) {
+    return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी की जानकारी देख सकते हैं' });
+  }
+  res.json(toOfficerAdmin(officer));
 }
 
 // POST /admin/officers   body: { name, badgeId, mobile, password, station, district }
@@ -199,38 +239,41 @@ async function createSHOByDSP(req, res) {
   }
 }
 
-// POST /admin/officers   body: { name, badgeId, mobile, password, station, district }
+// POST /admin/officers   body: { name, badgeId, mobile, password, station, district, rank, designation }
 async function createOfficer(req, res) {
-  const { name, badgeId, mobile, email, password, station, district, rank } = req.body;
+  const { name, badgeId, mobile, email, password, station, district, rank, designation } = req.body;
   if (!name || !badgeId || !password) {
     return res.status(400).json({ error: 'नाम, पुलिस आईडी और पासवर्ड आवश्यक हैं' });
   }
-  // 🐛 बग फ़िक्स (गंभीर): यहां district/station के लिए कोई scope-जांच ही नहीं थी।
-  // district_admin (blockMonitor इस भूमिका को नहीं रोकता) सीधे request में कोई भी
-  // district भरकर उस ज़िले के लिए अधिकारी बना सकता था — भले ही वह उनका अपना ज़िला
-  // न हो। ठीक वही समस्या जो updateOfficerRank में पहले मिली थी, यहां भी थी।
-  // सिर्फ़ जांचना काफ़ी नहीं — अगर district खाली छोड़ दिया जाए तो भी एक बिना-ज़िले
-  // वाला "अनाथ" अधिकारी बन सकता था, इसलिए district_admin के लिए हमेशा अपने ही
-  // ज़िले से भरते हैं (validate-if-given नहीं, हमेशा auto-fill)।
-  let finalDistrict = district;
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  let finalDistrict = district ? String(district).trim() : null;
   if (req.adminScope?.district) {
-    if (district && district !== req.adminScope.district) {
-      return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले के लिए अधिकारी बना सकते हैं' });
+    if (district && norm(district) !== norm(req.adminScope.district)) {
+      return res.status(403).json({ error: `आप सिर्फ़ अपने ज़िले (${req.adminScope.district}) के लिए अधिकारी बना सकते हैं` });
     }
     finalDistrict = req.adminScope.district;
   }
-  // 🐛 बग फ़िक्स: district_admin के लिए तो ऊपर auto-fill हो जाता है, पर super_admin
-  // (जिसका adminScope.district नहीं होता) ज़िला छोड़ भी सकता था — और बिना ज़िले वाला
-  // अधिकारी हर district-आधारित दायरा-जांच में "छूट" पा जाता है (सिर्फ़ थाने के नाम से
-  // मिलान, जो "कोतवाली" जैसे आम नामों पर 65 ज़िलों तक फैल सकता है)।
   if (!finalDistrict) {
     return res.status(400).json({ error: 'अधिकारी के लिए ज़िला आवश्यक है' });
   }
+
+  // Validate station belongs to finalDistrict in police_stations (if station is provided)
+  const cleanStation = station ? String(station).trim() : null;
+  if (cleanStation) {
+    const hasStations = await db.query('SELECT 1 FROM police_stations LIMIT 1');
+    if (hasStations.rows.length > 0) {
+      const stationCheck = await db.query(
+        'SELECT 1 FROM police_stations WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) AND TRIM(LOWER(station)) = TRIM(LOWER($2))',
+        [finalDistrict, cleanStation]
+      );
+      if (stationCheck.rows.length === 0) {
+        return res.status(400).json({ error: `थाना "${cleanStation}" ज़िले "${finalDistrict}" में मौजूद नहीं है` });
+      }
+    }
+  }
+
   const nameErr = validateName(name);
   if (nameErr) return res.status(400).json({ error: nameErr });
-  // 🔒 बग फ़िक्स: यह जांच बाकी सभी जगह इस्तेमाल होने वाली validateNewPassword() (8-16
-  // अक्षर + demo-password-रोक) की जगह अपना अलग, ढीला (सिर्फ़ न्यूनतम 6) नियम लगा
-  // रही थी — असंगति। अब वही साझा नीति यहां भी।
   const pwErr_bulk = validateNewPassword(password);
   if (pwErr_bulk) {
     return res.status(400).json({ error: pwErr_bulk });
@@ -248,36 +291,36 @@ async function createOfficer(req, res) {
     const mobileErr = validateMobile(mobile);
     if (mobileErr) return res.status(400).json({ error: mobileErr });
   }
-  const pwErr_1 = validateNewPassword(password);
-  if (pwErr_1) return res.status(400).json({ error: pwErr_1 });
+  if (email) {
+    const emailErr = validateEmail(email);
+    if (emailErr) return res.status(400).json({ error: emailErr });
+  }
   const passwordHash = await bcrypt.hash(password, 12);
   const { getCachedSetting } = require('./appSettingsController');
   const rankPermissions = getCachedSetting('rank_permissions');
   const defaultPermissions = rankPermissions[rank || 'SI'] || { canReject: true, canTransfer: false };
-  // 🆕 उपयोगकर्ता-अनुरोध: पहले सिर्फ़ DB constraint-टूटने (23505) पर एक सामान्य संदेश
-  // मिलता था — यह नहीं पता चलता था कि पुरानी सक्रिय ID *कहां* (किस थाने/ज़िले) मौजूद
-  // है। अब INSERT से *पहले* ही जांच लेते हैं, और मिले तो पूरी जानकारी (नाम, थाना,
-  // ज़िला) के साथ स्पष्ट चेतावनी देते हैं — पहले वहां जाकर उसे निष्क्रिय करना होगा।
+
   const dupChecks = [];
-  if (badgeId) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE badge_id = $1 AND is_active = true', [badgeId]));
-  if (mobile) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE mobile = $1 AND is_active = true', [mobile]));
+  if (badgeId) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE badge_id = $1 AND is_active = true', [badgeId.trim()]));
+  if (mobile) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE mobile = $1 AND is_active = true', [mobile.trim()]));
+  if (email) dupChecks.push(db.query('SELECT name, station, district FROM officers WHERE email = $1 AND is_active = true', [email.trim()]));
   const dupResults = await Promise.all(dupChecks);
   for (const r of dupResults) {
     if (r.rows.length > 0) {
       const ex = r.rows[0];
       return res.status(409).json({
-        error: `यह पुलिस आईडी/मोबाइल पहले से एक सक्रिय अधिकारी (${ex.name}) के पास है — ${ex.station || 'अज्ञात थाना'}, ${ex.district || 'अज्ञात ज़िला'} में। नई ID बनाने से पहले वहां जाकर पुरानी ID निष्क्रिय करवाएं।`,
+        error: `यह पुलिस आईडी/मोबाइल/ईमेल पहले से एक सक्रिय अधिकारी (${ex.name}) के पास है — ${ex.station || 'अज्ञात थाना'}, ${ex.district || 'अज्ञात ज़िला'} में। नई ID बनाने से पहले वहां जाकर पुरानी ID निष्क्रिय करवाएं।`,
         existingOfficer: { name: ex.name, station: ex.station, district: ex.district },
       });
     }
   }
   try {
     const result = await db.query(
-      `INSERT INTO officers (name, badge_id, mobile, email, password_hash, station, district, rank, permissions)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [name, badgeId, mobile || null, email || null, passwordHash, station || null, finalDistrict || null, rank || 'SI', JSON.stringify(defaultPermissions)]
+      `INSERT INTO officers (name, badge_id, mobile, email, password_hash, station, district, rank, designation, created_by_id, permissions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [name.trim(), badgeId.trim(), mobile ? mobile.trim() : null, email ? email.trim() : null, passwordHash, cleanStation, finalDistrict, rank || 'SI', designation ? designation.trim() : null, req.user.id, JSON.stringify(defaultPermissions)]
     );
-    logActivity({ actorRole: 'admin', actorId: req.user.id, actorName: req.user.name, action: 'officer_created', details: `नया अधिकारी जोड़ा: ${name} (${badgeId}, ${rank || 'SI'})`, req });
+    logActivity({ actorRole: 'admin', actorId: req.user.id, actorName: req.user.name, action: 'officer_created', details: `नया अधिकारी जोड़ा: ${name} (${badgeId}, ${rank || 'SI'}) — ${cleanStation || 'अज्ञात थाना'}, ${finalDistrict}`, req });
     res.status(201).json(toOfficerAdmin(result.rows[0]));
   } catch (err) {
     if (err.code === '23505') {
@@ -389,30 +432,107 @@ async function bulkImportOfficers(req, res) {
   res.json(results);
 }
 
-// PATCH /admin/officers/:id   body: { name, mobile, station, district }
-// ⚠️ station/district अब यहां से नहीं बदले जा सकते — ट्रांसफ़र होने पर पुरानी ID को
-// /status से निष्क्रिय करें और नए थाने/ज़िले के लिए बिल्कुल नई ID बनाएं (देखें: transferOfficer)
+// PATCH /admin/officers/:id   body: { name, mobile, email, rank, designation, station, district, permissions }
 async function updateOfficer(req, res) {
   const { id } = req.params;
-  const { name, mobile } = req.body;
+  const { name, mobile, email, rank, designation, station, district, permissions } = req.body;
+  const norm = (s) => String(s || '').trim().toLowerCase();
+
+  const existing = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
+  const old = existing.rows[0];
+
+  if (!isOfficerInScope(req, old)) {
+    return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी को बदल सकते हैं' });
+  }
+
+  let finalDistrict = old.district;
+  if (req.adminScope?.district) {
+    if (district !== undefined && district && norm(district) !== norm(req.adminScope.district)) {
+      return res.status(403).json({ error: `ज़िला व्यवस्थापक अधिकारी का ज़िला नहीं बदल सकते (आपका ज़िला: ${req.adminScope.district})` });
+    }
+    finalDistrict = req.adminScope.district;
+  } else if (req.user?.adminRole === 'super_admin' && district !== undefined) {
+    finalDistrict = district ? String(district).trim() : null;
+  }
+
+  let finalStation = old.station;
+  if (station !== undefined) {
+    finalStation = station ? String(station).trim() : null;
+    if (finalStation && finalDistrict) {
+      const hasStations = await db.query('SELECT 1 FROM police_stations LIMIT 1');
+      if (hasStations.rows.length > 0) {
+        const stationCheck = await db.query(
+          'SELECT 1 FROM police_stations WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) AND TRIM(LOWER(station)) = TRIM(LOWER($2))',
+          [finalDistrict, finalStation]
+        );
+        if (stationCheck.rows.length === 0) {
+          return res.status(400).json({ error: `थाना "${finalStation}" ज़िले "${finalDistrict}" में मौजूद नहीं है` });
+        }
+      }
+    }
+  }
+
   if (name !== undefined) {
     const nameErr = validateName(name);
     if (nameErr) return res.status(400).json({ error: nameErr });
   }
-  if (mobile) {
+  if (mobile !== undefined && mobile) {
     const mobileErr = validateMobile(mobile);
     if (mobileErr) return res.status(400).json({ error: mobileErr });
+    const dupMobile = await db.query(
+      'SELECT id, name FROM officers WHERE mobile = $1 AND is_active = true AND id != $2',
+      [mobile.trim(), id]
+    );
+    if (dupMobile.rows.length > 0) {
+      return res.status(409).json({ error: `यह मोबाइल नंबर पहले से एक सक्रिय अधिकारी (${dupMobile.rows[0].name}) के पास है` });
+    }
   }
-  const existing = await db.query('SELECT * FROM officers WHERE id = $1', [id]);
-  if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
-  if (!isOfficerInScope(req, existing.rows[0])) {
-    return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी को बदल सकते हैं' });
+  if (email !== undefined && email) {
+    const emailErr = validateEmail(email);
+    if (emailErr) return res.status(400).json({ error: emailErr });
+    const dupEmail = await db.query(
+      'SELECT id, name FROM officers WHERE email = $1 AND is_active = true AND id != $2',
+      [email.trim(), id]
+    );
+    if (dupEmail.rows.length > 0) {
+      return res.status(409).json({ error: `यह ईमेल पहले से एक सक्रिय अधिकारी (${dupEmail.rows[0].name}) के पास है` });
+    }
   }
+  if (rank !== undefined) {
+    if (!['SI', 'SHO'].includes(rank)) {
+      return res.status(400).json({ error: 'रैंक "SI" या "SHO" होना चाहिए' });
+    }
+  }
+  if (permissions !== undefined) {
+    const permDepthErr = validateJsonDepth(permissions, { label: 'permissions' });
+    if (permDepthErr) return res.status(400).json({ error: permDepthErr });
+  }
+
+  const finalName = name !== undefined ? name.trim() : old.name;
+  const finalMobile = mobile !== undefined ? (mobile ? mobile.trim() : null) : old.mobile;
+  const finalEmail = email !== undefined ? (email ? email.trim() : null) : old.email;
+  const finalRank = rank !== undefined ? rank : old.rank;
+  const finalDesignation = designation !== undefined ? (designation ? designation.trim() : null) : old.designation;
+  const finalPerms = permissions !== undefined ? JSON.stringify(permissions) : JSON.stringify(old.permissions);
+
   const result = await db.query(
-    `UPDATE officers SET name = COALESCE($1, name), mobile = $2, updated_at = now()
-     WHERE id = $3 RETURNING *`,
-    [name, mobile || null, id]
+    `UPDATE officers
+     SET name = $1, mobile = $2, email = $3, rank = $4, designation = $5,
+         station = $6, district = $7, permissions = $8, updated_at = now()
+     WHERE id = $9 RETURNING *`,
+    [finalName, finalMobile, finalEmail, finalRank, finalDesignation, finalStation, finalDistrict, finalPerms, id]
   );
+
+  logActivity({
+    actorRole: 'admin',
+    actorId: req.user.id,
+    actorName: req.user.name,
+    action: 'officer_updated',
+    details: `अधिकारी विवरण अपडेट: ${result.rows[0].name} (${result.rows[0].badge_id}) — ${finalStation || 'अज्ञात थाना'}, ${finalDistrict}`,
+    req,
+  });
+
   res.json(toOfficerAdmin(result.rows[0]));
 }
 
@@ -420,7 +540,7 @@ async function updateOfficer(req, res) {
 async function setOfficerStatus(req, res) {
   const { id } = req.params;
   const { isActive } = req.body;
-  const existing = await db.query('SELECT * FROM officers WHERE id = $1', [id]);
+  const existing = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
   if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
   if (!isOfficerInScope(req, existing.rows[0])) {
     return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी को सक्रिय/निष्क्रिय कर सकते हैं' });
@@ -434,15 +554,11 @@ async function setOfficerStatus(req, res) {
 async function updateOfficerPermissions(req, res) {
   const { id } = req.params;
   const { permissions } = req.body;
-  const existing = await db.query('SELECT * FROM officers WHERE id = $1', [id]);
+  const existing = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
   if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
   if (!isOfficerInScope(req, existing.rows[0])) {
     return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी की permissions बदल सकते हैं' });
   }
-  // 🐛 बग फ़िक्स: यह JSONB कॉलम है और client से सीधा आता है, पर गहराई (nesting) की
-  // कोई जांच नहीं थी — जबकि complaintController में extraDetails पर यही जांच पहले से
-  // है। बहुत गहरा/बड़ा object भेजकर database व बाद में उसे पढ़ने वाले कोड पर बेवजह
-  // दबाव डाला जा सकता था।
   const permDepthErr = validateJsonDepth(permissions, { label: 'permissions' });
   if (permDepthErr) return res.status(400).json({ error: permDepthErr });
   const result = await db.query(
@@ -455,9 +571,11 @@ async function updateOfficerPermissions(req, res) {
 // DELETE /admin/officers/:id
 async function deleteOfficer(req, res) {
   const { id } = req.params;
-  const existing = await db.query('SELECT * FROM officers WHERE id = $1', [id]);
+  const existing = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
   if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
-  if (!isOfficerInScope(req, existing.rows[0])) {
+  const officer = existing.rows[0];
+
+  if (!isOfficerInScope(req, officer)) {
     return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी को हटा सकते हैं' });
   }
   const assigned = await db.query(
@@ -467,9 +585,23 @@ async function deleteOfficer(req, res) {
   if (Number(assigned.rows[0].count) > 0) {
     return res.status(400).json({ error: 'इस अधिकारी को सक्रिय मामले नियुक्त हैं — पहले उन्हें किसी और को स्थानांतरित करें या हटाने की बजाय निष्क्रिय करें' });
   }
-  const result = await db.query('DELETE FROM officers WHERE id = $1 RETURNING id', [id]);
-  logActivity({ actorRole: 'admin', actorId: req.user.id, actorName: req.user.name, action: 'officer_deleted', details: `अधिकारी ID ${id} हटाया गया`, req });
-  res.json({ message: 'अधिकारी हटा दिया गया' });
+
+  // Safe soft deletion: preserves complaint history, foreign keys, and audit integrity
+  const result = await db.query(
+    `UPDATE officers
+     SET is_active = false, deleted_at = now(), duty_status = 'हटाया गया', updated_at = now()
+     WHERE id = $1 RETURNING id, name, badge_id, district, station`,
+    [id]
+  );
+  logActivity({
+    actorRole: 'admin',
+    actorId: req.user.id,
+    actorName: req.user.name,
+    action: 'officer_deleted',
+    details: `अधिकारी सुरक्षित रूप से हटाया गया: ${officer.name} (${officer.badge_id}) — ${officer.station || 'अज्ञात थाना'}, ${officer.district}`,
+    req,
+  });
+  res.json({ message: 'अधिकारी सुरक्षित रूप से हटाया गया', id: result.rows[0].id });
 }
 
 // POST /admin/officers/:id/transfer   body: { station, district?, badgeId?, mobile?, email?, password? }
@@ -480,7 +612,8 @@ async function transferOfficer(req, res) {
   const { station, district, mobile, email, password } = req.body;
   if (!station) return res.status(400).json({ error: 'नया थाना आवश्यक है' });
 
-  const existing = await db.query('SELECT * FROM officers WHERE id = $1', [id]);
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const existing = await db.query('SELECT * FROM officers WHERE id = $1 AND deleted_at IS NULL', [id]);
   if (existing.rows.length === 0) return res.status(404).json({ error: 'अधिकारी नहीं मिला' });
   const old = existing.rows[0];
   if (!old.is_active) return res.status(400).json({ error: 'यह ID पहले से निष्क्रिय है' });
@@ -488,7 +621,27 @@ async function transferOfficer(req, res) {
     return res.status(403).json({ error: 'आप सिर्फ़ अपने ज़िले/सर्किल के अधिकारी को ट्रांसफ़र कर सकते हैं' });
   }
 
-  const newDistrict = district || old.district;
+  let newDistrict = old.district;
+  if (req.adminScope?.district) {
+    if (district && norm(district) !== norm(req.adminScope.district)) {
+      return res.status(403).json({ error: `आप अधिकारी को दूसरे ज़िले में स्थानांतरित नहीं कर सकते (आपका ज़िला: ${req.adminScope.district})` });
+    }
+    newDistrict = req.adminScope.district;
+  } else if (req.user?.adminRole === 'super_admin' && district) {
+    newDistrict = district.trim();
+  }
+
+  // Validate station belongs to newDistrict in police_stations (if police_stations has records)
+  const hasStations = await db.query('SELECT 1 FROM police_stations LIMIT 1');
+  if (hasStations.rows.length > 0) {
+    const stationCheck = await db.query(
+      'SELECT 1 FROM police_stations WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) AND TRIM(LOWER(station)) = TRIM(LOWER($2))',
+      [newDistrict, station.trim()]
+    );
+    if (stationCheck.rows.length === 0) {
+      return res.status(400).json({ error: `थाना "${station}" ज़िले "${newDistrict}" में मौजूद नहीं है` });
+    }
+  }
   const newMobile = mobile !== undefined ? (mobile || null) : old.mobile;
   const newEmail = email !== undefined ? (email || null) : old.email;
   let passwordHash = old.password_hash;
@@ -790,14 +943,14 @@ async function listAdmins(req, res) {
 // adminRole: 'district_admin' (पूरा लिखने का अधिकार, ज़िले तक सीमित) | 'monitor' (सिर्फ़ देखना — DSP/ASP/SSP)
 async function createDistrictAdmin(req, res) {
   const { name, username, mobile, email, password, district, adminRole, rank, circleStations, rangeDistricts } = req.body;
+  if (req.user.adminRole === 'district_admin') {
+    return res.status(403).json({ error: 'ज़िला व्यवस्थापक अन्य व्यवस्थापक खाते नहीं बना सकते' });
+  }
+  // super_admin कभी भी API से नहीं बनाया जा सकता — सिर्फ़ monitor या district_admin
   const role = adminRole === 'monitor' ? 'monitor' : 'district_admin';
 
   // अगर बनाने वाला खुद SSP है (super_admin नहीं), तो सिर्फ़ DSP/ASP (monitor), और सिर्फ़
   // अपने ही ज़िले के लिए बना सकता है — दूसरे ज़िले के लिए नहीं
-  // 🆕 यही जांच अपने-आप IG/DIG को भी SSP से बचाती है — 'IG'/'DIG' इस allowlist में
-  // नहीं है, तो SSP का अनुरोध यहीं अस्वीकृत हो जाता है। IG/DIG खाता सिर्फ़ Super
-  // Admin बना सकता है (SSP से भी ऊपर का पद है, किसी अधीनस्थ को अपने वरिष्ठ का
-  // खाता बनाने देना तर्कसंगत नहीं)।
   if (req.user.adminRole === 'monitor' && req.user.rank === 'SSP') {
     if (role !== 'monitor' || !['DSP', 'ASP'].includes(rank)) {
       return res.status(403).json({ error: 'SSP सिर्फ़ DSP या ASP खाते बना सकता है' });
@@ -817,8 +970,20 @@ async function createDistrictAdmin(req, res) {
   if (mobileErr) return res.status(400).json({ error: mobileErr });
   const emailErr = validateEmail(email);
   if (emailErr) return res.status(400).json({ error: emailErr });
-  if (role === 'district_admin' && !district) {
-    return res.status(400).json({ error: 'district_admin के लिए ज़िला आवश्यक है' });
+  if (role === 'district_admin') {
+    if (!district) {
+      return res.status(400).json({ error: 'district_admin के लिए ज़िला आवश्यक है' });
+    }
+    const hasStations = await db.query('SELECT 1 FROM police_stations LIMIT 1');
+    if (hasStations.rows.length > 0) {
+      const validD = await db.query(
+        'SELECT 1 FROM police_stations WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) LIMIT 1',
+        [district.trim()]
+      );
+      if (validD.rows.length === 0) {
+        return res.status(400).json({ error: `ज़िला "${district}" मान्य नहीं है` });
+      }
+    }
   }
   if (role === 'monitor' && !['DSP', 'ASP', 'SSP', 'IG', 'DIG'].includes(rank)) {
     return res.status(400).json({ error: 'monitor भूमिका के लिए rank "DSP", "ASP", "SSP", "DIG" या "IG" आवश्यक है' });
@@ -928,6 +1093,86 @@ async function deleteAdmin(req, res) {
   if (id === req.user.id) return res.status(400).json({ error: 'खुद को हटाया नहीं जा सकता' });
   await db.query(`DELETE FROM admins WHERE id = $1 AND admin_role != 'super_admin'`, [id]);
   res.json({ message: 'हटा दिया गया' });
+}
+
+// PATCH /admin/admins/:id   (super_admin only)   body: { name, mobile, email, district }
+async function updateDistrictAdmin(req, res) {
+  const { id } = req.params;
+  const { name, mobile, email, district } = req.body;
+
+  const existing = await db.query('SELECT * FROM admins WHERE id = $1', [id]);
+  if (existing.rows.length === 0) return res.status(404).json({ error: 'व्यवस्थापक खाता नहीं मिला' });
+  const target = existing.rows[0];
+
+  if (target.admin_role === 'super_admin' && id !== req.user.id) {
+    return res.status(403).json({ error: 'Super Admin खाते में बदलाव की अनुमति नहीं है' });
+  }
+
+  if (name !== undefined) {
+    const nameErr = validateName(name);
+    if (nameErr) return res.status(400).json({ error: nameErr });
+  }
+  if (mobile !== undefined && mobile) {
+    const mobileErr = validateMobile(mobile);
+    if (mobileErr) return res.status(400).json({ error: mobileErr });
+    const dup = await db.query('SELECT id FROM admins WHERE mobile = $1 AND is_active = true AND id != $2', [mobile.trim(), id]);
+    if (dup.rows.length > 0) return res.status(409).json({ error: 'यह मोबाइल नंबर पहले से सक्रिय व्यवस्थापक खाते में मौजूद है' });
+  }
+  if (email !== undefined && email) {
+    const emailErr = validateEmail(email);
+    if (emailErr) return res.status(400).json({ error: emailErr });
+    const dup = await db.query('SELECT id FROM admins WHERE email = $1 AND is_active = true AND id != $2', [email.trim(), id]);
+    if (dup.rows.length > 0) return res.status(409).json({ error: 'यह ईमेल पहले से सक्रिय व्यवस्थापक खाते में मौजूद है' });
+  }
+
+  let finalDistrict = target.district;
+  if (district !== undefined && district) {
+    const hasStations = await db.query('SELECT 1 FROM police_stations LIMIT 1');
+    if (hasStations.rows.length > 0) {
+      const validD = await db.query(
+        'SELECT 1 FROM police_stations WHERE TRIM(LOWER(district)) = TRIM(LOWER($1)) LIMIT 1',
+        [district.trim()]
+      );
+      if (validD.rows.length === 0) {
+        return res.status(400).json({ error: `ज़िला "${district}" मान्य नहीं है` });
+      }
+    }
+    finalDistrict = district.trim();
+  }
+
+  const finalName = name !== undefined ? name.trim() : target.name;
+  const finalMobile = mobile !== undefined ? (mobile ? mobile.trim() : null) : target.mobile;
+  const finalEmail = email !== undefined ? (email ? email.trim() : null) : target.email;
+
+  const result = await db.query(
+    `UPDATE admins
+     SET name = $1, mobile = $2, email = $3, district = $4, updated_at = now()
+     WHERE id = $5
+     RETURNING id, name, username, mobile, email, admin_role, district, rank, is_active, updated_at`,
+    [finalName, finalMobile, finalEmail, finalDistrict, id]
+  );
+
+  logActivity({
+    actorRole: 'admin',
+    actorId: req.user.id,
+    actorName: req.user.name,
+    action: 'admin_updated',
+    details: `व्यवस्थापक खाता विवरण अपडेट: ${result.rows[0].name} (${result.rows[0].email || result.rows[0].mobile}) — ${finalDistrict || 'कोई ज़िला नहीं'}`,
+    req,
+  });
+
+  res.json({
+    id: result.rows[0].id,
+    name: result.rows[0].name,
+    username: result.rows[0].username,
+    mobile: result.rows[0].mobile,
+    email: result.rows[0].email,
+    adminRole: result.rows[0].admin_role,
+    district: result.rows[0].district,
+    rank: result.rows[0].rank,
+    isActive: result.rows[0].is_active,
+    updatedAt: result.rows[0].updated_at,
+  });
 }
 
 // किसी admin/DSP/ASP/SSP खाते पर action से पहले scope जांच — SSP सिर्फ़ अपने ज़िले के DSP/ASP पर
@@ -1166,6 +1411,7 @@ async function getOfficerStatusOverview(req, res) {
 
 module.exports = {
   listAllOfficers,
+  getOfficerDetails,
   createOfficer,
   updateOfficer,
   transferOfficer,
@@ -1183,6 +1429,7 @@ module.exports = {
   listActivityLogs,
   listAdmins,
   createDistrictAdmin,
+  updateDistrictAdmin,
   deleteAdmin,
   updateAdminMenuPermissions,
   bulkImportOfficers,

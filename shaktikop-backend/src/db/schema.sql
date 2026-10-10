@@ -65,9 +65,12 @@ CREATE TABLE officers (
   push_token    TEXT,                      -- Expo push notification token (Phase C में अलर्ट हेतु)
   photo_url     TEXT, -- वैकल्पिक प्रोफ़ाइल फ़ोटो (base64 data URI — किसी अलग file-server की ज़रूरत नहीं)
   is_active     BOOLEAN NOT NULL DEFAULT true,
+  deleted_at    TIMESTAMPTZ, -- सुरक्षित soft-delete (शिकायत इतिहास व audit अखंडता के लिए)
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_officers_deleted_at ON officers (deleted_at);
 
 -- सिर्फ़ *सक्रिय* अधिकारियों में PNO/मोबाइल/ईमेल यूनिक होने चाहिए — ताकि ट्रांसफ़र पर पुरानी
 -- (निष्क्रिय) ID के रहते हुए भी नए थाने के लिए नई ID बन सके, पर एक ही समय में एक ही PNO

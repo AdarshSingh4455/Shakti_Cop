@@ -16,15 +16,20 @@ const RANKS = [
 export default function OfficerFormScreen({ route, navigation }) {
   const officer = route.params?.officer || null;
   const isEdit = !!officer;
-  const { createOfficerAdmin, updateOfficerAdmin, updateOfficerPerms, updateOfficerRank, transferOfficerAdmin, districtsVersion } = useApp();
+  const { createOfficerAdmin, updateOfficerAdmin, updateOfficerPerms, updateOfficerRank, transferOfficerAdmin, districtsVersion, user, adminProfile } = useApp();
+
+  const currentRole = user?.adminRole || adminProfile?.adminRole;
+  const isDistrictAdmin = currentRole === 'district_admin';
+  const scopedDistrict = user?.district || adminProfile?.district;
+  const defaultDistrict = isDistrictAdmin && scopedDistrict ? scopedDistrict : (officer?.district || DISTRICTS[0]);
 
   const [name, setName] = useState(officer?.name || '');
   const [badgeId, setBadgeId] = useState(officer?.badgeId || '');
   const [mobile, setMobile] = useState(officer?.mobile || '');
   const [email, setEmail] = useState(officer?.email || '');
   const [password, setPassword] = useState('');
-  const [district, setDistrictRaw] = useState(officer?.district || DISTRICTS[0]);
-  const [station, setStation] = useState(officer?.station || stationsForDistrict(officer?.district || DISTRICTS[0])[0]);
+  const [district, setDistrictRaw] = useState(officer?.district || defaultDistrict);
+  const [station, setStation] = useState(officer?.station || stationsForDistrict(officer?.district || defaultDistrict)[0]);
   const [rank, setRank] = useState(officer?.rank || 'SI');
   const [canReject, setCanReject] = useState(officer?.permissions?.canReject ?? true);
   const [canTransfer, setCanTransfer] = useState(officer?.permissions?.canTransfer ?? false);
@@ -32,8 +37,8 @@ export default function OfficerFormScreen({ route, navigation }) {
   // ट्रांसफ़र मोड — edit करते समय थाना/ज़िला अलग से, साफ़ चेतावनी के साथ बदलता है
   // (पुरानी ID निष्क्रिय होकर नए थाने के लिए नई ID बनती है — साधारण edit से station/district नहीं बदलता)
   const [transferMode, setTransferMode] = useState(false);
-  const [transferDistrict, setTransferDistrict] = useState(officer?.district || DISTRICTS[0]);
-  const [transferStation, setTransferStation] = useState(officer?.station || stationsForDistrict(officer?.district || DISTRICTS[0])[0]);
+  const [transferDistrict, setTransferDistrict] = useState(officer?.district || defaultDistrict);
+  const [transferStation, setTransferStation] = useState(officer?.station || stationsForDistrict(officer?.district || defaultDistrict)[0]);
 
   // ज़िला बदलने पर उसी ज़िले का पहला थाना अपने-आप चुन लें (पुराने ज़िले का थाना ग़लती से न रह जाए)
   const setDistrict = (d) => {
@@ -67,6 +72,7 @@ export default function OfficerFormScreen({ route, navigation }) {
         await updateOfficerPerms(officer.id, { canReject, canTransfer });
         if (rank !== officer.rank) await updateOfficerRank(officer.id, rank);
       } else {
+        const finalDistrict = isDistrictAdmin && scopedDistrict ? scopedDistrict : district.trim();
         await createOfficerAdmin({
           name: name.trim(),
           badgeId: badgeId.trim(),
@@ -74,7 +80,7 @@ export default function OfficerFormScreen({ route, navigation }) {
           email: email.trim(),
           password,
           station: station.trim(),
-          district: district.trim(),
+          district: finalDistrict,
           rank,
         });
       }
@@ -134,13 +140,22 @@ export default function OfficerFormScreen({ route, navigation }) {
         </Field>
         <Field label={tt('ज़िला')}>
           <View style={styles.pickerWrap}>
-            <SafePicker key={`d-${districtsVersion}`} selectedValue={district} onValueChange={setDistrict} items={DISTRICTS} enabled={!isEdit} />
+            <SafePicker
+              key={`d-${districtsVersion}`}
+              selectedValue={isDistrictAdmin && scopedDistrict ? scopedDistrict : district}
+              onValueChange={setDistrict}
+              items={isDistrictAdmin && scopedDistrict ? [scopedDistrict] : DISTRICTS}
+              enabled={!isEdit && !isDistrictAdmin}
+            />
           </View>
-          {isEdit && <Text style={styles.pnoHint}>{tt('ज़िला/थाना बदलने के लिए नीचे "ट्रांसफ़र करें" इस्तेमाल करें')}</Text>}
+          {isDistrictAdmin && scopedDistrict && (
+            <Text style={styles.pnoHint}>{tt(`आपका अधिकार क्षेत्र: ${scopedDistrict} (निर्धारित)`)}</Text>
+          )}
+          {isEdit && !isDistrictAdmin && <Text style={styles.pnoHint}>{tt('ज़िला/थाना बदलने के लिए नीचे "ट्रांसफ़र करें" इस्तेमाल करें')}</Text>}
         </Field>
         <Field label={tt('थाना')}>
           <View style={styles.pickerWrap}>
-            <SafePicker key={`s-${district}-${districtsVersion}`} selectedValue={station} onValueChange={setStation} items={stationsForDistrict(district)} enabled={!isEdit} />
+            <SafePicker key={`s-${district}-${districtsVersion}`} selectedValue={station} onValueChange={setStation} items={stationsForDistrict(isDistrictAdmin && scopedDistrict ? scopedDistrict : district)} enabled={!isEdit} />
           </View>
         </Field>
       </View>
@@ -159,15 +174,19 @@ export default function OfficerFormScreen({ route, navigation }) {
                 <View style={styles.pickerWrap}>
                   <SafePicker
                     key={`td-${districtsVersion}`}
-                    selectedValue={transferDistrict}
+                    selectedValue={isDistrictAdmin && scopedDistrict ? scopedDistrict : transferDistrict}
                     onValueChange={(d) => { setTransferDistrict(d); setTransferStation(stationsForDistrict(d)[0]); }}
-                    items={DISTRICTS}
+                    items={isDistrictAdmin && scopedDistrict ? [scopedDistrict] : DISTRICTS}
+                    enabled={!isDistrictAdmin}
                   />
                 </View>
+                {isDistrictAdmin && (
+                  <Text style={styles.pnoHint}>{tt('ज़िला व्यवस्थापक केवल अपने ज़िले के अंतर्गत थाना स्थानांतरण कर सकते हैं')}</Text>
+                )}
               </Field>
               <Field label={tt('नया थाना')}>
                 <View style={styles.pickerWrap}>
-                  <SafePicker selectedValue={transferStation} onValueChange={setTransferStation} items={stationsForDistrict(transferDistrict)} />
+                  <SafePicker selectedValue={transferStation} onValueChange={setTransferStation} items={stationsForDistrict(isDistrictAdmin && scopedDistrict ? scopedDistrict : transferDistrict)} />
                 </View>
               </Field>
               <PrimaryButton title={tt('ट्रांसफ़र की पुष्टि करें')} onPress={confirmTransfer} loading={busy} />

@@ -47,6 +47,7 @@ const MIGRATION_PIPELINE = [
   { name: 'officer_transfer_support.sql', description: 'PNO reuse across stations upon transfer' },
   { name: 'officer_designation_column.sql', description: 'Officer functional designation column' },
   { name: 'officer_admin_photo.sql', description: 'Officer & Admin profile photo storage' },
+  { name: 'officer_soft_delete.sql', description: 'Safe soft-delete support for officers' },
   { name: 'notifications_priority.sql', description: 'Priority levels for in-app notifications' },
   { name: 'live_tracking_upgrade.sql', description: 'Live location trail enhancements' },
   { name: 'field_visit_gps_encryption.sql', description: 'AES-256 encrypted GPS check-ins for field visits' },

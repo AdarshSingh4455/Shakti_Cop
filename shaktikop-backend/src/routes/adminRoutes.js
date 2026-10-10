@@ -3,6 +3,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { requireAuth, requireRole, requireSuperAdmin, blockMonitor, requireDSPOrSuperAdmin, requireSSPOrSuperAdmin } = require('../middleware/auth');
 const {
   listAllOfficers,
+  getOfficerDetails,
   createOfficer,
   updateOfficer,
   transferOfficer,
@@ -18,6 +19,7 @@ const {
   listActivityLogs,
   listAdmins,
   createDistrictAdmin,
+  updateDistrictAdmin,
   deleteAdmin,
   setAdminStatus,
   transferAdmin,
@@ -64,6 +66,7 @@ router.use(requireAuth, requireRole('admin'));
 
 // ---------- देखना (view) — monitor (DSP/ASP/SSP) सहित सभी admin roles को उपलब्ध ----------
 router.get('/officers', asyncHandler(listAllOfficers));
+router.get('/officers/:id', asyncHandler(getOfficerDetails));
 router.get('/officer-status-overview', asyncHandler(getOfficerStatusOverview));
 router.get('/me', asyncHandler(getMyAdminProfile));
 router.get('/stats/by-category', asyncHandler(getCategoryStats));
@@ -143,6 +146,7 @@ router.post('/report-schedules/:id/generate-now', blockMonitor, asyncHandler(gen
 // Granular RBAC — सिर्फ़ super_admin district-admin/monitor खाते बना/हटा सकता है
 router.get('/admins', requireSuperAdmin, asyncHandler(listAdmins));
 router.post('/admins', requireSSPOrSuperAdmin, asyncHandler(createDistrictAdmin));
+router.patch('/admins/:id', requireSuperAdmin, asyncHandler(updateDistrictAdmin));
 router.patch('/admins/:id/status', requireSSPOrSuperAdmin, asyncHandler(setAdminStatus));
 router.post('/admins/:id/transfer', requireSSPOrSuperAdmin, asyncHandler(transferAdmin));
 router.patch('/admins/:id/menu-permissions', requireSuperAdmin, asyncHandler(updateAdminMenuPermissions));
