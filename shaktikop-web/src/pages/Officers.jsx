@@ -113,6 +113,16 @@ export default function Officers() {
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState('');
 
+  // Super Admin Contact Modal State
+  const [showSuperAdminContactModal, setShowSuperAdminContactModal] = useState(false);
+  const [superAdminContactForm, setSuperAdminContactForm] = useState({
+    email: '',
+    username: '',
+    mobile: '',
+    currentPassword: '',
+  });
+  const [showSuperAdminCurrentPassword, setShowSuperAdminCurrentPassword] = useState(false);
+
   // 1. Load Location Data with fallback & retry support
   const fetchLocations = useCallback(async () => {
     setLocationLoading(true);
@@ -665,6 +675,55 @@ export default function Officers() {
     }
   };
 
+  // Handle Super Admin Contact Modal
+  const handleOpenSuperAdminContactModal = () => {
+    setModalError('');
+    setSuperAdminContactForm({
+      email: globalSuperAdmin?.email || '',
+      username: globalSuperAdmin?.username || '',
+      mobile: globalSuperAdmin?.mobile || '',
+      currentPassword: '',
+    });
+    setShowSuperAdminCurrentPassword(false);
+    setShowSuperAdminContactModal(true);
+  };
+
+  const handleSaveSuperAdminContact = async (e) => {
+    e.preventDefault();
+    setModalError('');
+
+    if (!superAdminContactForm.currentPassword) {
+      setModalError('सुरक्षा सत्यापन के लिए कृपया अपना वर्तमान पासवर्ड दर्ज करें।');
+      return;
+    }
+
+    if (!superAdminContactForm.email?.trim() && !superAdminContactForm.username?.trim() && !superAdminContactForm.mobile?.trim()) {
+      setModalError('कम से कम एक फ़ील्ड (ईमेल, यूज़रनेम या मोबाइल) भरना आवश्यक है।');
+      return;
+    }
+
+    setModalBusy(true);
+    try {
+      const payload = {
+        email: superAdminContactForm.email?.trim() || undefined,
+        username: superAdminContactForm.username?.trim() || undefined,
+        mobile: superAdminContactForm.mobile?.trim() || undefined,
+        currentPassword: superAdminContactForm.currentPassword,
+      };
+      const res = await api('/admin/super-admin/contact', {
+        method: 'PATCH',
+        body: payload,
+      });
+      notifySuccess(res.message || 'Global Super Admin संपर्क विवरण सफलतापूर्वक अपडेट कर दिया गया है।');
+      setShowSuperAdminContactModal(false);
+      loadAdmins();
+    } catch (err) {
+      setModalError(err.message || 'संपर्क विवरण अपडेट करने में त्रुटि हुई');
+    } finally {
+      setModalBusy(false);
+    }
+  };
+
   return (
     <>
       <div className="page-head" style={{ alignItems: 'flex-start' }}>
@@ -1019,10 +1078,34 @@ export default function Officers() {
                   {globalSuperAdmin?.name || 'मुख्य प्रशासक (Super Admin)'}
                 </h3>
                 <div style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-                  ईमेल / लॉगिन: <strong>{globalSuperAdmin?.email || globalSuperAdmin?.username || 'admin@uppolice.gov.in'}</strong>
+                  ईमेल / लॉगिन: <strong>{globalSuperAdmin?.email || 'admin@uppolice.gov.in'}</strong>
+                  {globalSuperAdmin?.username ? ` • यूज़रनेम: ${globalSuperAdmin.username}` : ''}
                   {globalSuperAdmin?.mobile ? ` • मोबाइल: ${globalSuperAdmin.mobile}` : ''}
                   {' • '}अधिकार क्षेत्र: <strong>समस्त उत्तर प्रदेश (75 ज़िले पूर्ण नियंत्रण)</strong>
                 </div>
+                {isSuperAdmin && (
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      type="button"
+                      className="btn btn-quiet"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        padding: '6px 14px',
+                        border: '1px solid var(--rule)',
+                        borderRadius: 'var(--r)',
+                        background: 'var(--surface)',
+                        cursor: 'pointer',
+                      }}
+                      onClick={handleOpenSuperAdminContactModal}
+                    >
+                      ✏️ संपर्क विवरण बदलें (Edit Contact Details)
+                    </button>
+                  </div>
+                )}
               </div>
               <div
                 style={{
@@ -2147,6 +2230,150 @@ export default function Officers() {
                   disabled={modalBusy}
                 >
                   {modalBusy ? 'सहेजा जा रहा है...' : 'अनुमतियां सुरक्षित करें'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: SUPER ADMIN CONTACT ===================== */}
+      {showSuperAdminContactModal && (
+        <div style={modalOverlayStyle}>
+          <div className="card" style={{ ...modalContentStyle, maxWidth: 480 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span className="pill pill-alarm" style={{ fontWeight: 700, padding: '2px 8px' }}>
+                🛡️ Global Super Admin
+              </span>
+              <span className="pill pill-ok">पहचान व संपर्क विवरण</span>
+            </div>
+            <h2>संपर्क विवरण बदलें</h2>
+            <p style={{ color: 'var(--ink-3)', fontSize: 13, marginTop: 4, marginBottom: 14 }}>
+              Global Web Super Admin के लॉगिन ईमेल, यूज़रनेम एवं मोबाइल नंबर को सुरक्षित रूप से अपडेट करें।
+            </p>
+
+            <div
+              style={{
+                padding: '10px 14px',
+                background: 'var(--card-sunk)',
+                borderRadius: 'var(--r)',
+                marginBottom: 16,
+                fontSize: 12.5,
+                color: 'var(--ink-2)',
+                border: '1px solid var(--rule-soft)',
+                lineHeight: 1.5,
+              }}
+            >
+              🔒 <strong>सुरक्षा निर्देश:</strong> यह राज्य-स्तरीय सर्वोच्च प्रशासनिक खाता है। क्रेडेंशियल परिवर्तन के लिए आपका वर्तमान पासवर्ड अनिवार्य है।
+            </div>
+
+            {modalError && <div className="error-box" style={{ marginBottom: 12 }}>{modalError}</div>}
+
+            <form onSubmit={handleSaveSuperAdminContact}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                    लॉगिन ईमेल (Login Email) *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    className="input"
+                    placeholder="admin@uppolice.gov.in"
+                    value={superAdminContactForm.email}
+                    onChange={(e) => setSuperAdminContactForm({ ...superAdminContactForm, email: e.target.value })}
+                  />
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 }}>
+                    प्रशासनिक सूचनाएं और OTP इसी पते पर प्राप्त होंगे।
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                    लॉगिन यूज़रनेम (Login Username) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="input"
+                    placeholder="admin"
+                    value={superAdminContactForm.username}
+                    onChange={(e) => setSuperAdminContactForm({ ...superAdminContactForm, username: e.target.value })}
+                  />
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 }}>
+                    वेब पैनल में पासवर्ड से लॉगिन करते समय इस्तेमाल किया जाने वाला यूज़रनेम।
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                    मोबाइल नंबर (Mobile Number) *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    className="input"
+                    placeholder="9450000500"
+                    value={superAdminContactForm.mobile}
+                    onChange={(e) => setSuperAdminContactForm({ ...superAdminContactForm, mobile: e.target.value.replace(/\D/g, '') })}
+                  />
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 }}>
+                    10 अंकों का वैध मोबाइल नंबर (आपातकालीन व सत्यापन सूचना हेतु)।
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--rule-soft)', paddingTop: 14 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                    वर्तमान पासवर्ड (Current Password) *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showSuperAdminCurrentPassword ? 'text' : 'password'}
+                      required
+                      className="input"
+                      style={{ paddingRight: 40 }}
+                      placeholder="सत्यापन के लिए अपना वर्तमान पासवर्ड दर्ज करें"
+                      value={superAdminContactForm.currentPassword}
+                      onChange={(e) => setSuperAdminContactForm({ ...superAdminContactForm, currentPassword: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowSuperAdminCurrentPassword(!showSuperAdminCurrentPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontSize: 16,
+                      }}
+                    >
+                      {showSuperAdminCurrentPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-quiet"
+                  onClick={() => setShowSuperAdminContactModal(false)}
+                  disabled={modalBusy}
+                >
+                  रद्द करें
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={modalBusy}
+                >
+                  {modalBusy ? 'सहेजा जा रहा है...' : 'विवरण सहेजें'}
                 </button>
               </div>
             </form>

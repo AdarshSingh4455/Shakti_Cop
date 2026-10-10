@@ -1288,6 +1288,171 @@ async function updateDistrictAdmin(req, res) {
   });
 }
 
+// ============================================================
+// 🔒 Global Web Super Admin संपर्क विवरण अपडेट (Email, Username, Mobile)
+//
+// सिर्फ़ अधिकृत Global Web Super Admin अपने खाते के पहचान व संपर्क विवरण बदल सकते हैं।
+// सुरक्षा उपाय:
+// 1. सर्वर-साइड भूमिका सत्यापन (req.user.adminRole === 'super_admin' एवं DB admin_role === 'super_admin')
+// 2. वर्तमान पासवर्ड का अनिवार्य सत्यापन (timingSafeVerify)
+// 3. सुरक्षित फ़ील्ड्स (admin_role, district, rank, permissions, is_active आदि) में बदलाव पर सख्त रोक
+// 4. ईमेल, यूज़रनेम एवं मोबाइल फ़ॉर्मेट व यूनिकनेस सत्यापन
+// 5. पासवर्ड हैश या सीक्रेट्स कभी रिस्पांस में नहीं लौटाए जाते
+// ============================================================
+// PATCH /admin/super-admin/contact   (super_admin only)
+// body: { email, username, mobile, currentPassword }
+async function updateSuperAdminContact(req, res) {
+  // 1. कड़ा सर्वर-साइड भूमिका सत्यापन
+  if (req.user?.role !== 'admin' || req.user?.adminRole !== 'super_admin') {
+    return res.status(403).json({ error: 'यह कार्य सिर्फ़ Global Super Admin कर सकते हैं' });
+  }
+
+  // 2. सुरक्षित फ़ील्ड्स में बदलाव का प्रयास अस्वीकार करें
+  const protectedFields = [
+    'adminRole', 'admin_role', 'role',
+    'district', 'rank',
+    'circleStations', 'circle_stations',
+    'rangeDistricts', 'range_districts',
+    'permissions', 'menuPermissions', 'menu_permissions',
+    'isActive', 'is_active',
+    'password', 'newPassword', 'password_hash',
+    'id'
+  ];
+  for (const field of protectedFields) {
+    if (req.body[field] !== undefined) {
+      return res.status(400).json({ error: `सुरक्षित फ़ील्ड "${field}" में बदलाव की अनुमति नहीं है` });
+    }
+  }
+
+  const { email, username, mobile, currentPassword } = req.body;
+
+  // 3. वर्तमान पासवर्ड सत्यापन अनिवार्य है
+  if (!currentPassword) {
+    return res.status(400).json({ error: 'पहचान व सुरक्षा सत्यापन के लिए वर्तमान पासवर्ड आवश्यक है' });
+  }
+
+  // डेटाबेस से सुपर एडमिन का मौजूदा रिकॉर्ड लाएं
+  const adminResult = await db.query(
+    'SELECT id, name, username, mobile, email, password_hash, admin_role, is_active FROM admins WHERE id = $1',
+    [req.user.id]
+  );
+  if (adminResult.rows.length === 0) {
+    return res.status(404).json({ error: 'व्यवस्थापक खाता नहीं मिला' });
+  }
+  const superAdmin = adminResult.rows[0];
+
+  if (superAdmin.admin_role !== 'super_admin' || !superAdmin.is_active) {
+    return res.status(403).json({ error: 'केवल सक्रिय Global Super Admin खाते का संपर्क विवरण बदला जा सकता है' });
+  }
+
+  // टाइमिंग-सुरक्षित पासवर्ड तुलना
+  const isPasswordValid = await timingSafeVerify(currentPassword, superAdmin.password_hash);
+  if (!isPasswordValid) {
+    logActivity({
+      actorRole: 'admin',
+      actorId: superAdmin.id,
+      actorName: superAdmin.name,
+      action: 'super_admin_contact_update_failed',
+      details: 'ग़लत वर्तमान पासवर्ड — सुपर एडमिन संपर्क विवरण बदलने का प्रयास विफल',
+      req,
+    });
+    return res.status(401).json({ error: 'वर्तमान पासवर्ड गलत है' });
+  }
+
+  // 4. कम से कम एक संपर्क फ़ील्ड होना चाहिए
+  if (email === undefined && username === undefined && mobile === undefined) {
+    return res.status(400).json({ error: 'कम से कम एक फ़ील्ड (ईमेल, यूज़रनेम या मोबाइल) भरना आवश्यक है' });
+  }
+
+  let finalEmail = superAdmin.email;
+  if (email !== undefined) {
+    const cleanEmail = String(email).trim().toLowerCase();
+    const emailErr = validateEmail(cleanEmail);
+    if (emailErr) return res.status(400).json({ error: emailErr });
+
+    const dupEmail = await db.query(
+      'SELECT id, name FROM admins WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND is_active = true AND id != $2',
+      [cleanEmail, superAdmin.id]
+    );
+    if (dupEmail.rows.length > 0) {
+      return res.status(409).json({ error: 'यह ईमेल पहले से किसी सक्रिय व्यवस्थापक खाते में मौजूद है' });
+    }
+    finalEmail = cleanEmail;
+  }
+
+  let finalUsername = superAdmin.username;
+  if (username !== undefined) {
+    const cleanUsername = String(username).trim();
+    if (!cleanUsername) {
+      return res.status(400).json({ error: 'यूज़रनेम खाली नहीं हो सकता' });
+    }
+    if (!/^[a-zA-Z0-9._-]{3,50}$/.test(cleanUsername)) {
+      return res.status(400).json({ error: 'यूज़रनेम 3 से 50 अक्षर का होना चाहिए (अक्षर, अंक, ., _, -)' });
+    }
+
+    const dupUser = await db.query(
+      'SELECT id, name FROM admins WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND is_active = true AND id != $2',
+      [cleanUsername, superAdmin.id]
+    );
+    if (dupUser.rows.length > 0) {
+      return res.status(409).json({ error: 'यह यूज़रनेम पहले से किसी व्यवस्थापक खाते में मौजूद है' });
+    }
+    finalUsername = cleanUsername;
+  }
+
+  let finalMobile = superAdmin.mobile;
+  if (mobile !== undefined) {
+    const cleanMobile = String(mobile).trim();
+    const mobileErr = validateMobile(cleanMobile);
+    if (mobileErr) return res.status(400).json({ error: mobileErr });
+
+    const dupMobile = await db.query(
+      'SELECT id FROM admins WHERE mobile = $1 AND is_active = true AND id != $2',
+      [cleanMobile, superAdmin.id]
+    );
+    if (dupMobile.rows.length > 0) {
+      return res.status(409).json({ error: 'यह मोबाइल नंबर पहले से किसी सक्रिय व्यवस्थापक खाते में मौजूद है' });
+    }
+    finalMobile = cleanMobile;
+  }
+
+  // 5. सुरक्षित डेटाबेस अपडेट
+  const updatedResult = await db.query(
+    `UPDATE admins
+     SET email = $1, username = $2, mobile = $3, updated_at = now()
+     WHERE id = $4 AND admin_role = 'super_admin'
+     RETURNING id, name, username, mobile, email, admin_role, is_active, updated_at`,
+    [finalEmail, finalUsername, finalMobile, superAdmin.id]
+  );
+
+  const updatedAdmin = updatedResult.rows[0];
+
+  // 6. ऑडिट लॉग
+  logActivity({
+    actorRole: 'admin',
+    actorId: superAdmin.id,
+    actorName: superAdmin.name,
+    action: 'super_admin_contact_updated',
+    details: `Global Super Admin संपर्क विवरण अपडेट: ईमेल=${finalEmail}, यूज़रनेम=${finalUsername}, मोबाइल=${finalMobile}`,
+    req,
+  });
+
+  // 7. स्वच्छ रिस्पांस (पासवर्ड हैश या सीक्रेट्स कभी नहीं)
+  res.json({
+    message: 'Global Super Admin संपर्क विवरण सफलतापूर्वक अपडेट कर दिया गया है',
+    admin: {
+      id: updatedAdmin.id,
+      name: updatedAdmin.name,
+      username: updatedAdmin.username,
+      mobile: updatedAdmin.mobile,
+      email: updatedAdmin.email,
+      adminRole: updatedAdmin.admin_role,
+      isActive: updatedAdmin.is_active,
+      updatedAt: updatedAdmin.updated_at,
+    },
+  });
+}
+
 // किसी admin/DSP/ASP/SSP खाते पर action से पहले scope जांच — SSP सिर्फ़ अपने ज़िले के DSP/ASP पर
 function isAdminInScope(req, targetRow) {
   if (!targetRow) return true;
@@ -1556,6 +1721,7 @@ module.exports = {
   listAdmins,
   createDistrictAdmin,
   updateDistrictAdmin,
+  updateSuperAdminContact,
   deleteAdmin,
   updateAdminMenuPermissions,
   bulkImportOfficers,

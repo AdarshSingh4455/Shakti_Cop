@@ -20,6 +20,7 @@ const {
   listAdmins,
   createDistrictAdmin,
   updateDistrictAdmin,
+  updateSuperAdminContact,
   deleteAdmin,
   setAdminStatus,
   transferAdmin,
@@ -142,6 +143,9 @@ router.post('/report-schedules', blockMonitor, asyncHandler(createSchedule));
 router.patch('/report-schedules/:id', blockMonitor, asyncHandler(updateSchedule));
 router.delete('/report-schedules/:id', blockMonitor, asyncHandler(deleteSchedule));
 router.post('/report-schedules/:id/generate-now', blockMonitor, asyncHandler(generateNow));
+
+// 🔒 Global Web Super Admin संपर्क विवरण — सिर्फ़ Super Admin ही अपने विवरण बदल सकता है
+router.patch('/super-admin/contact', requireSuperAdmin, asyncHandler(updateSuperAdminContact));
 
 // Granular RBAC — सिर्फ़ super_admin district-admin/monitor खाते बना/हटा सकता है
 router.get('/admins', requireSuperAdmin, asyncHandler(listAdmins));

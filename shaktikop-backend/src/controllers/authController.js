@@ -557,23 +557,45 @@ async function officerLogin(req, res) {
   });
 }
 
-// POST /auth/admin/login   body: { username, password }
+// POST /auth/admin/login   body: { username/email, password }
 async function adminLogin(req, res) {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'यूज़रनेम और पासवर्ड आवश्यक हैं' });
+  const identifier = (req.body.username || req.body.email || req.body.identifier || '').trim();
+  const { password } = req.body;
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'यूज़रनेम / ईमेल और पासवर्ड आवश्यक हैं' });
   }
-  const result = await db.query('SELECT * FROM admins WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND is_active = true', [username]);
+  const result = await db.query(
+    'SELECT * FROM admins WHERE (LOWER(TRIM(username)) = LOWER(TRIM($1)) OR LOWER(TRIM(email)) = LOWER(TRIM($1))) AND is_active = true',
+    [identifier]
+  );
   const admin = result.rows[0];
-  if (isBlockedDemoPassword(password, username)) return res.status(403).json(DEMO_PASSWORD_ERROR);
+  if (isBlockedDemoPassword(password, identifier)) return res.status(403).json(DEMO_PASSWORD_ERROR);
   if (!(await timingSafeVerify(password, admin?.password_hash))) {
-    logActivity({ actorRole: 'admin', actorId: admin?.id || null, actorName: username, action: 'login_failed', details: 'ग़लत पासवर्ड (एडमिन)', req });
-    return res.status(401).json({ error: 'यूज़रनेम या पासवर्ड गलत है' });
+    logActivity({ actorRole: 'admin', actorId: admin?.id || null, actorName: identifier, action: 'login_failed', details: 'ग़लत पासवर्ड (एडमिन)', req });
+    return res.status(401).json({ error: 'यूज़रनेम / ईमेल या पासवर्ड गलत है' });
   }
   const token = signToken({ id: admin.id, role: 'admin', name: admin.name, adminRole: admin.admin_role, district: admin.district, rank: admin.rank, circleStations: admin.circle_stations, rangeDistricts: admin.range_districts });
   const refreshToken = await createRefreshToken(admin.id, 'admin', req.body.deviceName);
   logActivity({ actorRole: 'admin', actorId: admin.id, actorName: admin.name, action: 'login', details: 'यूज़रनेम/पासवर्ड से लॉगिन', req });
-  res.json({ token, refreshToken, user: { id: admin.id, name: admin.name, adminRole: admin.admin_role, district: admin.district, rank: admin.rank, circleStations: admin.circle_stations, rangeDistricts: admin.range_districts, menuPermissions: admin.menu_permissions, photoUrl: admin.photo_url, role: 'admin' } });
+  res.json({
+    token,
+    refreshToken,
+    user: {
+      id: admin.id,
+      name: admin.name,
+      username: admin.username,
+      email: admin.email,
+      mobile: admin.mobile,
+      adminRole: admin.admin_role,
+      district: admin.district,
+      rank: admin.rank,
+      circleStations: admin.circle_stations,
+      rangeDistricts: admin.range_districts,
+      menuPermissions: admin.menu_permissions,
+      photoUrl: admin.photo_url,
+      role: 'admin',
+    },
+  });
 }
 
 // ============================================================
