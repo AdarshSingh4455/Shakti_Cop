@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 const { signToken } = require('../utils/jwt');
@@ -232,31 +233,61 @@ async function citizenLogin(req, res) {
 // नागरिक — पासवर्ड भूल गए
 // ============================================================
 
-// POST /auth/citizen/forgot-password/request-otp   body: { mobile }
-// 🔒 सुरक्षा फ़िक्स: पहले यह बता देता था कि दिया गया मोबाइल नंबर रजिस्टर्ड है या नहीं
-// (404 बनाम सफलता) — यह "account enumeration" है, और इस ऐप के संदर्भ में ख़ासतौर पर
-// संवेदनशील है: कोई पीड़िता के मोबाइल नंबर से यह जांच सकता था कि उसने ShaktiCop पर
-// खाता बनाया है या नहीं (यानी शिकायत दर्ज करने की कोशिश की या नहीं)। अब जवाब हमेशा
-// एक जैसा (सामान्य) रहता है, चाहे खाता मौजूद हो या न हो — OTP सिर्फ़ तभी असल में
-// भेजा जाता है जब खाता मौजूद हो।
+// 🔒 Server-side binding: OTP सत्यापन के बाद 10 मिनट के लिए वैध सुरक्षित रीसेट टोकन
+function generateResetToken(mobile) {
+  const secret = process.env.JWT_SECRET || 'shaktikop-secret-key-fallback';
+  const payload = {
+    mobile: String(mobile).trim(),
+    purpose: 'reset_password',
+    exp: Date.now() + 10 * 60 * 1000,
+  };
+  const dataStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(dataStr).digest('base64url');
+  return `${dataStr}.${sig}`;
+}
+
+function verifyResetToken(token, expectedMobile) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [dataStr, sig] = parts;
+  if (!dataStr || !sig) return null;
+  const secret = process.env.JWT_SECRET || 'shaktikop-secret-key-fallback';
+  const expectedSig = crypto.createHmac('sha256', secret).update(dataStr).digest('base64url');
+  if (sig.length !== expectedSig.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(dataStr, 'base64url').toString('utf8'));
+    if (!payload.exp || payload.exp < Date.now()) return null;
+    if (payload.purpose !== 'reset_password') return null;
+    if (expectedMobile && String(payload.mobile).trim() !== String(expectedMobile).trim()) return null;
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+// POST /auth/citizen/forgot-password/request-otp & /auth/forgot-password/request-otp   body: { mobile }
+// 🔒 सुरक्षा: खाता-मौजूदगी की जानकारी लीक नहीं होती (anti-enumeration)
 async function forgotPasswordRequestOtp(req, res) {
   const { mobile, locale } = req.body;
-  // 🆕 बाक़ी सभी OTP-request functions मोबाइल का फ़ॉर्मेट जांचते हैं, यहां छूट गया
-  // था — असली exploit यहां संभव नहीं था (DB lookup exact-match है, इसलिए malicious
-  // payload वाला मान कभी किसी असली नागरिक से मेल नहीं खाता और createAndSendOtp तक
-  // पहुंचता ही नहीं), पर बाक़ी जगहों जैसी संगति और भविष्य-सुरक्षा के लिए जोड़ा।
-  if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+  if (!mobile || !/^[0-9]{10}$/.test(String(mobile).trim())) {
     return res.status(400).json({ error: 'कृपया मान्य 10 अंकों का मोबाइल नंबर दें' });
   }
-  // 🆕 email भी लाते हैं — जिस नागरिक ने साइनअप के समय ईमेल दिया था, उसे OTP दोनों
-  // जगह (मोबाइल व ईमेल) मिलेगा। पासवर्ड भूलने पर यही सबसे ज़्यादा काम आता है, क्योंकि
-  // अक्सर वजह यही होती है कि SMS नहीं पहुँच रहा।
-  const existing = await db.query('SELECT id, email FROM citizens WHERE mobile = $1', [mobile]);
-  // ⚠️ devOtp सिर्फ़ ALLOW_INSECURE_DEV_LOGIN/OTP_DEV_MODE में लौटता है (createAndSendOtp में तय),
-  // इसलिए dev/test में सुविधा बनी रहती है, पर production में जवाब हमेशा एक जैसा दिखता है।
+  const cleanMobile = String(mobile).trim();
+
+  // नागरिक, अधिकारी, एडमिन या काउंसलर/प्रशिक्षक — सभी समर्थित हैं
+  const citizenRes = await db.query('SELECT id, email FROM citizens WHERE mobile = $1 AND is_active = true', [cleanMobile]);
+  const officerRes = await db.query('SELECT id, email FROM officers WHERE mobile = $1 AND is_active = true', [cleanMobile]);
+  const adminRes = await db.query('SELECT id, email FROM admins WHERE mobile = $1 AND is_active = true', [cleanMobile]);
+  const providerRes = await db.query('SELECT id, email FROM service_providers WHERE mobile = $1 AND is_active = true', [cleanMobile]);
+
+  const exists = citizenRes.rows.length > 0 || officerRes.rows.length > 0 || adminRes.rows.length > 0 || providerRes.rows.length > 0;
+  const email = citizenRes.rows[0]?.email || officerRes.rows[0]?.email || adminRes.rows[0]?.email || providerRes.rows[0]?.email;
+
   try {
-    const devOtp = existing.rows.length > 0
-      ? await createAndSendOtp(mobile, 'reset_password', locale, existing.rows[0].email)
+    const devOtp = exists
+      ? await createAndSendOtp(cleanMobile, 'reset_password', locale, email)
       : undefined;
     res.json({ message: 'खाता मौजूद होने पर OTP भेज दिया गया है', ...(devOtp ? { devOtp } : {}) });
   } catch (err) {
@@ -267,42 +298,136 @@ async function forgotPasswordRequestOtp(req, res) {
   }
 }
 
-// POST /auth/citizen/forgot-password/reset   body: { mobile, otp, newPassword }
+// POST /auth/forgot-password/verify-otp & /auth/citizen/forgot-password/verify-otp   body: { mobile, otp, msg91AccessToken }
+async function forgotPasswordVerifyOtp(req, res) {
+  const { mobile, otp, msg91AccessToken } = req.body;
+  if (!mobile || !/^[0-9]{10}$/.test(String(mobile).trim())) {
+    return res.status(400).json({ error: 'कृपया मान्य 10 अंकों का मोबाइल नंबर दें' });
+  }
+  if (!otp && !msg91AccessToken) {
+    return res.status(400).json({ error: 'OTP आवश्यक है' });
+  }
+  const cleanMobile = String(mobile).trim();
+
+  const gate = await checkOtpAttempts(req, 'reset_password');
+  if (!gate.ok) {
+    res.set('Retry-After', String(gate.retryAfterSec));
+    return res.status(429).json({ error: gate.error });
+  }
+
+  if (msg91AccessToken) {
+    const vResult = await verifyMsg91AccessToken(msg91AccessToken, cleanMobile);
+    if (!vResult.valid) {
+      await recordOtpFailure(req, 'reset_password');
+      return res.status(401).json({ error: vResult.error || 'OTP सत्यापन असफल रहा' });
+    }
+  } else {
+    const isValid = await verifyOtp(cleanMobile, otp, 'reset_password');
+    if (!isValid) {
+      await recordOtpFailure(req, 'reset_password');
+      return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
+    }
+  }
+
+  await clearOtpAttempts(req, 'reset_password');
+  const resetToken = generateResetToken(cleanMobile);
+  return res.json({
+    success: true,
+    message: 'OTP सफलतापूर्वक सत्यापित हुआ',
+    resetToken,
+  });
+}
+
+// POST /auth/citizen/forgot-password/reset & /auth/forgot-password/reset   body: { mobile, otp, resetToken, newPassword }
 async function forgotPasswordReset(req, res) {
-  const { mobile, otp, newPassword } = req.body;
+  const { mobile, otp, resetToken, newPassword } = req.body;
+  if (!mobile || !/^[0-9]{10}$/.test(String(mobile).trim())) {
+    return res.status(400).json({ error: 'कृपया मान्य 10 अंकों का मोबाइल नंबर दें' });
+  }
+  const cleanMobile = String(mobile).trim();
+
   const pwErr_reset = validateNewPassword(newPassword);
   if (pwErr_reset) {
     return res.status(400).json({ error: pwErr_reset });
   }
-  // 🔒 OTP सत्यापन की अतिरिक्त सुरक्षा — पहचान+purpose के हिसाब से असफल कोशिशों की
-  // गिनती, बढ़ता हुआ backoff, और बार-बार असफलता पर audit-चेतावनी (देखें utils/otpAttempts.js)
-  const gate_reset_password = await checkOtpAttempts(req, 'reset_password');
-  if (!gate_reset_password.ok) {
-    res.set('Retry-After', String(gate_reset_password.retryAfterSec));
-    return res.status(429).json({ error: gate_reset_password.error });
+
+  if (resetToken) {
+    const tokenPayload = verifyResetToken(resetToken, cleanMobile);
+    if (!tokenPayload) {
+      return res.status(401).json({ error: 'पासवर्ड रीसेट सत्र अमान्य या समाप्त हो गया है। कृपया दोबारा OTP सत्यापित करें।' });
+    }
+  } else {
+    if (!otp) {
+      return res.status(400).json({ error: 'OTP या रीसेट टोकन आवश्यक है' });
+    }
+    const gate_reset_password = await checkOtpAttempts(req, 'reset_password');
+    if (!gate_reset_password.ok) {
+      res.set('Retry-After', String(gate_reset_password.retryAfterSec));
+      return res.status(429).json({ error: gate_reset_password.error });
+    }
+    const isValid = await verifyOtp(cleanMobile, otp, 'reset_password');
+    if (!isValid) {
+      await recordOtpFailure(req, 'reset_password');
+      return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
+    }
+    await clearOtpAttempts(req, 'reset_password');
   }
-  const isValid = await verifyOtp(mobile, otp, 'reset_password');
-  if (!isValid) {
-    await recordOtpFailure(req, 'reset_password');
-    return res.status(401).json({ error: 'OTP गलत है या समय समाप्त हो गया' });
-  }
-  await clearOtpAttempts(req, 'reset_password'); // सफल — असली उपयोगकर्ता के नाम पुरानी असफलताएँ न टिकें
-  const pwErr2 = validateNewPassword(newPassword);
-  if (pwErr2) return res.status(400).json({ error: pwErr2 });
+
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  const updated = await db.query(
-    'UPDATE citizens SET password_hash = $1 WHERE mobile = $2 RETURNING id',
-    [passwordHash, mobile]
+  let updatedRole = null;
+  let updatedId = null;
+
+  // 1. नागरिक
+  const citizenUp = await db.query(
+    'UPDATE citizens SET password_hash = $1 WHERE mobile = $2 AND is_active = true RETURNING id',
+    [passwordHash, cleanMobile]
   );
-  // 🔒 सुरक्षा फ़िक्स: पासवर्ड बदलने पर पुराने सत्र (refresh tokens) रद्द नहीं होते थे।
-  // यह "पासवर्ड भूल गए" वाला रास्ता है — इसे अक्सर तभी इस्तेमाल किया जाता है जब शक़ हो
-  // कि किसी और के पास पहुँच है (फ़ोन खो गया, कोई पीछा कर रहा है)। पर पासवर्ड बदलने के
-  // बाद भी उस पुराने डिवाइस का refresh token 30 दिन तक चलता रहता — यानी हमलावर की
-  // पहुँच बनी रहती, और महिला को लगता कि उसने पहुँच काट दी। यह ग़लत भरोसा असल में
-  // बिना पासवर्ड बदले रहने से भी ज़्यादा ख़तरनाक है।
-  if (updated.rows[0]) {
-    await revokeAllForUser(updated.rows[0].id, 'citizen');
+  if (citizenUp.rows.length > 0) {
+    updatedRole = 'citizen';
+    updatedId = citizenUp.rows[0].id;
   }
+
+  // 2. पुलिस अधिकारी
+  if (!updatedRole) {
+    const officerUp = await db.query(
+      'UPDATE officers SET password_hash = $1 WHERE mobile = $2 AND is_active = true RETURNING id',
+      [passwordHash, cleanMobile]
+    );
+    if (officerUp.rows.length > 0) {
+      updatedRole = 'officer';
+      updatedId = officerUp.rows[0].id;
+    }
+  }
+
+  // 3. एडमिन
+  if (!updatedRole) {
+    const adminUp = await db.query(
+      'UPDATE admins SET password_hash = $1 WHERE mobile = $2 AND is_active = true RETURNING id',
+      [passwordHash, cleanMobile]
+    );
+    if (adminUp.rows.length > 0) {
+      updatedRole = 'admin';
+      updatedId = adminUp.rows[0].id;
+    }
+  }
+
+  // 4. सेवा प्रदाता (काउंसलर / प्रशिक्षक)
+  if (!updatedRole) {
+    const providerUp = await db.query(
+      'UPDATE service_providers SET password_hash = $1 WHERE mobile = $2 AND is_active = true RETURNING id',
+      [passwordHash, cleanMobile]
+    );
+    if (providerUp.rows.length > 0) {
+      updatedRole = 'counsellor';
+      updatedId = providerUp.rows[0].id;
+    }
+  }
+
+  if (updatedId && updatedRole) {
+    await revokeAllForUser(updatedId, updatedRole);
+    logActivity({ actorRole: updatedRole, actorId: updatedId, actorName: maskIdentity(cleanMobile), action: 'reset_password', details: `पासवर्ड रीसेट सफल (${updatedRole})`, req });
+  }
+
   res.json({ message: 'पासवर्ड सफलतापूर्वक बदल दिया गया है, अब लॉगिन करें' });
 }
 
@@ -533,14 +658,19 @@ async function staffVerifyOtp(req, res) {
   res.status(404).json({ error: 'स्टाफ़ खाता नहीं मिला' });
 }
 
-// POST /auth/officer/login   body: { badgeId, username, password }   (password-आधारित लॉगिन)
+// POST /auth/officer/login   body: { badgeId, username, mobile, email, password }   (password-आधारित लॉगिन)
 async function officerLogin(req, res) {
-  const identifier = (req.body.username || req.body.badgeId || req.body.identifier || '').trim();
+  const identifier = (req.body.username || req.body.badgeId || req.body.identifier || req.body.mobile || req.body.email || '').trim();
   const { password } = req.body;
   if (!identifier || !password) {
-    return res.status(400).json({ error: 'यूज़रनेम / पुलिस आईडी और पासवर्ड आवश्यक हैं' });
+    return res.status(400).json({ error: 'यूज़रनेम / पुलिस आईडी / मोबाइल और पासवर्ड आवश्यक हैं' });
   }
-  const result = await db.query('SELECT * FROM officers WHERE LOWER(TRIM(badge_id)) = LOWER(TRIM($1)) AND is_active = true', [identifier]);
+  const result = await db.query(
+    `SELECT * FROM officers
+     WHERE (LOWER(TRIM(badge_id)) = LOWER(TRIM($1)) OR LOWER(TRIM(mobile)) = LOWER(TRIM($1)) OR LOWER(TRIM(email)) = LOWER(TRIM($1)))
+       AND is_active = true`,
+    [identifier]
+  );
   const officer = result.rows[0];
   if (isBlockedDemoPassword(password, identifier)) return res.status(403).json(DEMO_PASSWORD_ERROR);
   if (!(await timingSafeVerify(password, officer?.password_hash))) {
@@ -553,19 +683,19 @@ async function officerLogin(req, res) {
   res.json({
     token,
     refreshToken,
-    user: { id: officer.id, name: officer.name, badgeId: officer.badge_id, username: officer.badge_id, station: officer.station, district: officer.district, rank: officer.rank, designation: officer.designation, notificationPreferences: officer.notification_preferences, photoUrl: officer.photo_url, role: 'officer' },
+    user: { id: officer.id, name: officer.name, badgeId: officer.badge_id, username: officer.badge_id, mobile: officer.mobile, email: officer.email, station: officer.station, district: officer.district, rank: officer.rank, designation: officer.designation, notificationPreferences: officer.notification_preferences, photoUrl: officer.photo_url, role: 'officer' },
   });
 }
 
-// POST /auth/admin/login   body: { username/email, password }
+// POST /auth/admin/login   body: { username/email/mobile, password }
 async function adminLogin(req, res) {
-  const identifier = (req.body.username || req.body.email || req.body.identifier || '').trim();
+  const identifier = (req.body.username || req.body.email || req.body.identifier || req.body.mobile || '').trim();
   const { password } = req.body;
   if (!identifier || !password) {
     return res.status(400).json({ error: 'यूज़रनेम / ईमेल और पासवर्ड आवश्यक हैं' });
   }
   const result = await db.query(
-    'SELECT * FROM admins WHERE (LOWER(TRIM(username)) = LOWER(TRIM($1)) OR LOWER(TRIM(email)) = LOWER(TRIM($1))) AND is_active = true',
+    'SELECT * FROM admins WHERE (LOWER(TRIM(username)) = LOWER(TRIM($1)) OR LOWER(TRIM(email)) = LOWER(TRIM($1)) OR LOWER(TRIM(mobile)) = LOWER(TRIM($1))) AND is_active = true',
     [identifier]
   );
   const admin = result.rows[0];
@@ -596,6 +726,99 @@ async function adminLogin(req, res) {
       role: 'admin',
     },
   });
+}
+
+// POST /auth/staff/login   body: { identifier, password, deviceName }
+// एकीकृत स्टाफ़ लॉगिन (अधिकारी या एडमिन — मोबाइल, ईमेल, यूज़रनेम, पुलिस आईडी + पासवर्ड)
+async function staffLogin(req, res) {
+  const identifier = (req.body.identifier || req.body.username || req.body.email || req.body.mobile || '').trim();
+  const { password } = req.body;
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'मोबाइल / ईमेल और पासवर्ड आवश्यक हैं' });
+  }
+
+  // 1. पहले अधिकारियों में खोजें
+  const officerResult = await db.query(
+    `SELECT * FROM officers
+     WHERE (LOWER(TRIM(mobile)) = LOWER(TRIM($1)) OR LOWER(TRIM(email)) = LOWER(TRIM($1)) OR LOWER(TRIM(badge_id)) = LOWER(TRIM($1)))
+       AND is_active = true`,
+    [identifier]
+  );
+  if (officerResult.rows.length > 0) {
+    const officer = officerResult.rows[0];
+    if (isBlockedDemoPassword(password, identifier)) return res.status(403).json(DEMO_PASSWORD_ERROR);
+    if (!(await timingSafeVerify(password, officer.password_hash))) {
+      logActivity({ actorRole: 'officer', actorId: officer.id, actorName: identifier, action: 'login_failed', details: 'ग़लत पासवर्ड (स्टाफ़ अधिकारी)', req });
+      return res.status(401).json({ error: 'मोबाइल / ईमेल या पासवर्ड गलत है' });
+    }
+    const token = signToken({ id: officer.id, role: 'officer', name: officer.name, badgeId: officer.badge_id, username: officer.badge_id, rank: officer.rank, district: officer.district, station: officer.station });
+    const refreshToken = await createRefreshToken(officer.id, 'officer', req.body.deviceName);
+    logActivity({ actorRole: 'officer', actorId: officer.id, actorName: officer.name, action: 'login', details: 'स्टाफ़ पासवर्ड से लॉगिन (officer)', req });
+    return res.json({
+      token,
+      refreshToken,
+      user: {
+        id: officer.id,
+        name: officer.name,
+        badgeId: officer.badge_id,
+        username: officer.badge_id,
+        mobile: officer.mobile,
+        email: officer.email,
+        station: officer.station,
+        district: officer.district,
+        dutyStatus: officer.duty_status,
+        permissions: officer.permissions,
+        rank: officer.rank,
+        designation: officer.designation,
+        notificationPreferences: officer.notification_preferences,
+        photoUrl: officer.photo_url,
+        role: 'officer',
+      },
+    });
+  }
+
+  // 2. फिर एडमिन में खोजें
+  const adminResult = await db.query(
+    `SELECT * FROM admins
+     WHERE (LOWER(TRIM(mobile)) = LOWER(TRIM($1)) OR LOWER(TRIM(email)) = LOWER(TRIM($1)) OR LOWER(TRIM(username)) = LOWER(TRIM($1)))
+       AND is_active = true`,
+    [identifier]
+  );
+  if (adminResult.rows.length > 0) {
+    const admin = adminResult.rows[0];
+    if (isBlockedDemoPassword(password, identifier)) return res.status(403).json(DEMO_PASSWORD_ERROR);
+    if (!(await timingSafeVerify(password, admin.password_hash))) {
+      logActivity({ actorRole: 'admin', actorId: admin.id, actorName: identifier, action: 'login_failed', details: 'ग़लत पासवर्ड (स्टाफ़ एडमिन)', req });
+      return res.status(401).json({ error: 'मोबाइल / ईमेल या पासवर्ड गलत है' });
+    }
+    const token = signToken({ id: admin.id, role: 'admin', name: admin.name, adminRole: admin.admin_role, district: admin.district, rank: admin.rank, circleStations: admin.circle_stations, rangeDistricts: admin.range_districts });
+    const refreshToken = await createRefreshToken(admin.id, 'admin', req.body.deviceName);
+    logActivity({ actorRole: 'admin', actorId: admin.id, actorName: admin.name, action: 'login', details: 'स्टाफ़ पासवर्ड से लॉगिन (admin)', req });
+    return res.json({
+      token,
+      refreshToken,
+      user: {
+        id: admin.id,
+        name: admin.name,
+        username: admin.username,
+        email: admin.email,
+        mobile: admin.mobile,
+        adminRole: admin.admin_role,
+        district: admin.district,
+        rank: admin.rank,
+        circleStations: admin.circle_stations,
+        rangeDistricts: admin.range_districts,
+        menuPermissions: admin.menu_permissions,
+        photoUrl: admin.photo_url,
+        role: 'admin',
+      },
+    });
+  }
+
+  // 3. यदि दोनों में न मिले, तो टाइमिंग सुरक्षा के लिए डमी वेरिफ़ाई
+  await timingSafeVerify(password, null);
+  logActivity({ actorRole: 'unknown', actorId: null, actorName: maskIdentity(identifier), action: 'login_failed', details: 'खाता नहीं मिला या ग़लत क्रेडेंशियल (staff login)', req });
+  return res.status(401).json({ error: 'मोबाइल / ईमेल या पासवर्ड गलत है' });
 }
 
 // ============================================================
@@ -703,6 +926,7 @@ module.exports = {
   signupVerify,
   citizenLogin,
   forgotPasswordRequestOtp,
+  forgotPasswordVerifyOtp,
   forgotPasswordReset,
   officerRequestOtp,
   officerVerifyOtp,
@@ -710,6 +934,7 @@ module.exports = {
   staffVerifyOtp,
   officerLogin,
   adminLogin,
+  staffLogin,
   refreshAccessToken,
   logout,
   logoutAll,

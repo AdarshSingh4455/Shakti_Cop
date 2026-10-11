@@ -195,6 +195,7 @@ const otpAccountLimiter = rateLimit({
 
 app.use('/auth/citizen/signup/request-otp', otpAccountLimiter, otpLimiter);
 app.use('/auth/citizen/forgot-password/request-otp', otpAccountLimiter, otpLimiter);
+app.use('/auth/forgot-password/request-otp', otpAccountLimiter, otpLimiter);
 app.use('/auth/officer/request-otp', otpAccountLimiter, otpLimiter);
 app.use('/auth/staff/request-otp', otpAccountLimiter, otpLimiter);
 
@@ -252,8 +253,12 @@ const accountLockLimiter = rateLimit({
 app.use('/auth/citizen/login', accountLockLimiter, loginLimiter);
 app.use('/auth/officer/login', accountLockLimiter, loginLimiter);
 app.use('/auth/admin/login', accountLockLimiter, loginLimiter);
+app.use('/auth/staff/login', accountLockLimiter, loginLimiter);
 app.use('/auth/citizen/signup/verify', accountLockLimiter, loginLimiter);
+app.use('/auth/citizen/forgot-password/verify-otp', otpAccountLimiter, otpLimiter);
 app.use('/auth/citizen/forgot-password/reset', accountLockLimiter, loginLimiter);
+app.use('/auth/forgot-password/verify-otp', otpAccountLimiter, otpLimiter);
+app.use('/auth/forgot-password/reset', accountLockLimiter, loginLimiter);
 app.use('/auth/officer/verify-otp', accountLockLimiter, loginLimiter);
 app.use('/auth/staff/verify-otp', accountLockLimiter, loginLimiter);
 // 🐛 बग फ़िक्स: यह पूरे ऐप का इकलौता लॉगिन endpoint था जिस पर brute-force सुरक्षा
