@@ -1,7 +1,7 @@
 const db = require('../config/db');
 const { newComplaintId } = require('../utils/ids');
 const { logActivity } = require('../utils/activityLog');
-const { sendPushNotification } = require('../utils/push');
+const { sendPushNotification, sendPushNotificationsBatch } = require('../utils/push');
 const { createNotification, createNotificationsBatch } = require('../utils/notify');
 const { encryptField, decryptField, blindIndex } = require('../utils/fieldCrypto');
 const { validateTextLength, validateUrl, validateJsonDepth, validateCoordinate } = require('../utils/fieldValidators');
@@ -260,36 +260,97 @@ async function createComplaint(req, res) {
     [id, req.user.name]
   );
 
-  // 🐛 सुधार: पहले संबंधित थाने के SHO को शिकायत दर्ज होते ही कोई सूचना नहीं मिलती थी —
-  // सिर्फ़ तभी पता चलता जब SHO खुद ऐप खोलकर देखे, या जब कोई मामला असाइन हो (जो SHO खुद ही
-  // करता है)। अब शिकायत दर्ज होते ही उसी थाने के सभी सक्रिय SHO को तुरंत notification
-  // (push + in-app) मिल जाती है — TRIM+LOWER से मिलान, ताकि station-नाम में मामूली
-  // formatting अंतर (space/case) से कोई SHO छूट न जाए।
+  // 🚀 Feature 1: शिकायत दर्ज होते ही संबंधित थाने के सभी अधिकृत MSK व SHO खातों को Push व In-App Notification
+  // क्षेत्राधिकार (District + Police Station) के आधार पर केवल उसी थाने के सक्रिय अधिकारियों को लक्षित किया जाता है।
   if (finalDistrict && finalPoliceStation) {
     try {
-      const shos = await db.query(
-        `SELECT id, push_token, notification_preferences FROM officers
-         WHERE rank = 'SHO' AND is_active = true
+      // 1. संबंधित थाने व ज़िले के सभी सक्रिय व अनामित अधिकारियों (SHO + MSK स्टाफ) को खोजें
+      const officersQuery = await db.query(
+        `SELECT id, name, rank, designation, push_token, notification_preferences
+         FROM officers
+         WHERE is_active = true
+           AND deleted_at IS NULL
            AND TRIM(LOWER(district)) = TRIM(LOWER($1))
            AND TRIM(LOWER(station)) = TRIM(LOWER($2))`,
         [finalDistrict, finalPoliceStation]
       );
-      for (const sho of shos.rows) {
-        // 🆕 SHO की notification preferences का सम्मान — चाहें तो "नई शिकायत" की push
-        // बंद कर सकते हैं (in-app सूचना फिर भी बनती है, सिर्फ़ फ़ोन पर push नहीं आती)
-        if (sho.notification_preferences?.newComplaint !== false) {
-          sendPushNotification(sho.push_token, 'नई शिकायत दर्ज हुई', `${category} — शिकायत ${id} आपके थाने में दर्ज हुई है।`, { complaintId: id });
+
+      // 2. एक ही अधिकारी को डुप्लीकेट नोटिफिकेशन न मिले (Deduplication by Officer ID)
+      const uniqueOfficers = [];
+      const seenOfficerIds = new Set();
+      for (const off of officersQuery.rows) {
+        if (!seenOfficerIds.has(off.id)) {
+          seenOfficerIds.add(off.id);
+          uniqueOfficers.push(off);
         }
-        createNotification({
-          recipientRole: 'officer',
-          recipientId: sho.id,
-          title: 'नई शिकायत दर्ज हुई',
-          body: `${category} — शिकायत ${id} आपके थाने में दर्ज हुई है।`,
-          data: { complaintId: id },
+      }
+
+      // 3. Idempotency Check: इस complaintId और event ('new_complaint') के लिए डुप्लीकेट नोटिफिकेशन रोकें
+      const existingNotifs = await db.query(
+        `SELECT recipient_id FROM notifications
+         WHERE data->>'complaintId' = $1 AND data->>'type' = 'new_complaint'`,
+        [id]
+      );
+      const alreadyNotified = new Set(existingNotifs.rows.map((r) => r.recipient_id));
+
+      const title = 'नई शिकायत प्राप्त हुई — ShaktiCop';
+      const body = `आपके थाने के अधिकार क्षेत्र में नई शिकायत दर्ज हुई है। शिकायत ID: ${id}`;
+      const payloadData = {
+        complaintId: id,
+        type: 'new_complaint',
+        district: finalDistrict,
+        station: finalPoliceStation,
+      };
+
+      const inAppRecipients = [];
+      const pushMessages = [];
+      const seenPushTokens = new Set();
+
+      for (const off of uniqueOfficers) {
+        if (alreadyNotified.has(off.id)) continue;
+
+        inAppRecipients.push({
+          recipientId: off.id,
+          priority: 'high',
+        });
+
+        // 🔒 Push Preferences का सम्मान — अधिकारी ने "नई शिकायत" push बंद न की हो
+        // साथ ही साझा डिवाइसों पर duplicate push रोकने के लिए token de-duplication
+        if (
+          off.notification_preferences?.newComplaint !== false &&
+          off.push_token &&
+          !seenPushTokens.has(off.push_token)
+        ) {
+          seenPushTokens.add(off.push_token);
+          pushMessages.push({
+            to: off.push_token,
+            title,
+            body,
+            data: payloadData,
+            priority: 'high',
+            channelId: 'default',
+            sound: 'default',
+          });
+        }
+      }
+
+      // In-app notifications batch
+      if (inAppRecipients.length > 0) {
+        await createNotificationsBatch('officer', inAppRecipients, {
+          title,
+          body,
+          data: payloadData,
+          priority: 'high',
         });
       }
+
+      // Remote push notifications batch dispatch (Expo push service)
+      if (pushMessages.length > 0) {
+        await sendPushNotificationsBatch(pushMessages);
+      }
     } catch (e) {
-      // सूचना भेजने में समस्या हो तो भी शिकायत दर्ज होना नहीं रुकना चाहिए
+      // ⚠️ Fault-tolerant: Push या notification भेजने में समस्या हो तो भी शिकायत पंजीकरण कभी विफल नहीं होना चाहिए
+      console.error(`[ComplaintNotification] Error dispatching notifications for complaint ${id}:`, e.message);
     }
   }
 

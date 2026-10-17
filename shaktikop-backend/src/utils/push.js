@@ -1,10 +1,25 @@
-// ============================================================
-// Expo Push Notifications — officer के फोन पर असली नोटिफिकेशन भेजने के लिए।
-// इसके लिए officer के डिवाइस से एक push token लेकर officers.push_token में
-// सेव करना होगा (मोबाइल ऐप की तरफ़ से — expo-notifications पैकेज इस्तेमाल करके)।
-// यह फ़ंक्शन असल में इंटरनेट पर Expo के push सर्वर को कॉल करता है, इसलिए
-// production सर्वर पर आउटबाउंड HTTPS एक्सेस चाहिए।
-// ============================================================
+const db = require('../config/db');
+
+// 🔒 अमान्य/हटाए गए टोकनों की सफ़ाई (DeviceNotRegistered) —
+// जब Expo push सर्वर यह बताता है कि यह डिवाइस अनरजिस्टर्ड हो चुका है (ऐप अनइंस्टॉल या परमिशन रद्द),
+// तो उस टोकन को डेटाबेस से साफ़ कर दिया जाता है ताकि अनावश्यक पुश अनुरोध न भेजे जाएं।
+async function cleanupDeadTokens(tokens) {
+  const list = (Array.isArray(tokens) ? tokens : [tokens]).filter((t) => t && typeof t === 'string');
+  if (list.length === 0) return;
+  try {
+    for (const token of list) {
+      await Promise.allSettled([
+        db.query('UPDATE officers SET push_token = NULL WHERE push_token = $1', [token]),
+        db.query('UPDATE citizens SET push_token = NULL WHERE push_token = $1', [token]),
+        db.query('UPDATE admins SET push_token = NULL WHERE push_token = $1', [token]),
+        db.query('UPDATE service_providers SET push_token = NULL WHERE push_token = $1', [token]),
+      ]);
+    }
+  } catch (err) {
+    console.error('अमान्य push tokens साफ़ करने में त्रुटि:', err.message);
+  }
+}
+
 async function sendPushNotification(pushToken, title, body, data = {}) {
   if (!pushToken) return { skipped: true, reason: 'कोई push token नहीं है' };
   // 🐛 बग फ़िक्स (DoS-जोखिम): बाकी हर बाहरी API कॉल (OTP-SMS, Twilio, Overpass) में
@@ -38,7 +53,20 @@ async function sendPushNotification(pushToken, title, body, data = {}) {
       }),
       signal: controller.signal,
     });
-    return await res.json();
+    const json = await res.json();
+    if (json?.data) {
+      const tickets = Array.isArray(json.data) ? json.data : [json.data];
+      const deadTokens = [];
+      for (const t of tickets) {
+        if (t?.status === 'error' && t?.details?.error === 'DeviceNotRegistered') {
+          deadTokens.push(pushToken);
+        }
+      }
+      if (deadTokens.length > 0) {
+        cleanupDeadTokens(deadTokens).catch(() => {});
+      }
+    }
+    return json;
   } catch (err) {
     return { error: err.message };
   } finally {
@@ -46,4 +74,85 @@ async function sendPushNotification(pushToken, title, body, data = {}) {
   }
 }
 
-module.exports = { sendPushNotification };
+// ============================================================
+// 🚀 Batch Push Notification Dispatch
+// कई अधिकारियों/उपयोगकर्ताओं को एक साथ कुशल और सुरक्षित तरीके से नोटिफिकेशन भेजना।
+// Expo Push API प्रति बैच 100 संदेशों तक स्वीकार करता है।
+// ============================================================
+async function sendPushNotificationsBatch(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { sentCount: 0, failedCount: 0, skipped: true };
+  }
+
+  const validMessages = [];
+  for (const m of messages) {
+    if (!m || !m.to || typeof m.to !== 'string') continue;
+    const token = m.to.trim();
+    if (!token.startsWith('ExponentPushToken[') && !token.startsWith('ExpoPushToken[')) {
+      continue;
+    }
+    validMessages.push({
+      to: token,
+      sound: m.sound || 'default',
+      title: m.title || 'नई सूचना — ShaktiCop',
+      body: m.body || '',
+      data: m.data || {},
+      priority: m.priority || 'high',
+      channelId: m.channelId || (m.data && (m.data.sos || m.data.checkinComplaintId) ? 'sos' : 'default'),
+    });
+  }
+
+  if (validMessages.length === 0) {
+    return { sentCount: 0, failedCount: 0, reason: 'कोई वैध push token नहीं मिला' };
+  }
+
+  let totalSent = 0;
+  let totalFailed = 0;
+  const allTickets = [];
+  const deadTokens = [];
+
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < validMessages.length; i += CHUNK_SIZE) {
+    const chunk = validMessages.slice(i, i + CHUNK_SIZE);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(chunk),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      const tickets = Array.isArray(json?.data) ? json.data : [];
+      tickets.forEach((ticket, idx) => {
+        allTickets.push(ticket);
+        if (ticket.status === 'ok') {
+          totalSent++;
+        } else {
+          totalFailed++;
+          if (ticket.details?.error === 'DeviceNotRegistered') {
+            const deadToken = chunk[idx]?.to;
+            if (deadToken) deadTokens.push(deadToken);
+          }
+        }
+      });
+    } catch (err) {
+      totalFailed += chunk.length;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  if (deadTokens.length > 0) {
+    cleanupDeadTokens(deadTokens).catch(() => {});
+  }
+
+  return {
+    sentCount: totalSent,
+    failedCount: totalFailed,
+    tickets: allTickets,
+  };
+}
+
+module.exports = { sendPushNotification, sendPushNotificationsBatch, cleanupDeadTokens };
